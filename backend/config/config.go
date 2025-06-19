@@ -5,9 +5,7 @@
 package config
 
 import (
-	// "fmt"
 	"os"
-
 	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -31,9 +29,13 @@ func GetEnv(key string) string {
 	return val
 }
 
+var DB *gorm.DB
+
 // Connect to database
 func ConnectDB() (*gorm.DB, error) {
 	dsn := GetEnv("DSN_STRING")
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+
+	DB = db
 	return db, err
 }
