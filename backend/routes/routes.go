@@ -19,8 +19,14 @@ func RegisterRoutes(e *echo.Echo) {
 	// Admin routes	
 	admin := e.Group("/admin")
 	admin.Use(handler.AdminJWTMiddleware())
+	//contest routes
 	admin.POST("/create-contest", handler.CreateContest)
 	admin.GET("/contests", handler.GetAllContests)
 	admin.PUT("/contest/:id", handler.UpdateContest)
 	admin.DELETE("/contest/:id", handler.DeleteContest)
+	//problem routes
+	admin.POST("/create-problem/:id", handler.CreateProblem)
+	admin.GET("/problems/:id", handler.GetAllProblemsByContestID)
+	admin.PUT("/problem/:id", handler.UpdateProblem)
+	admin.DELETE("/problem/:id", handler.DeleteProblem)
 }

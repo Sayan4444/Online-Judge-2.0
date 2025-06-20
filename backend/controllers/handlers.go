@@ -327,3 +327,121 @@ func DeleteContest(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, echo.Map{"message": "contest deleted successfully"})
 }
+
+// Get Problems by Contest ID
+func GetAllProblemsByContestID(c echo.Context) error {
+	contestID := c.Param("id")
+	db := config.DB
+	var problems []models.Problem
+
+	if err := db.Where("contest_id = ?", contestID).Find(&problems).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to retrieve problems"})
+	}
+
+	if len(problems) == 0 {
+		return c.JSON(http.StatusNotFound, echo.Map{"error": "no problems found for this contest"})
+	}
+
+	return c.JSON(http.StatusOK, problems)
+}
+
+// Create Problems in a Contest
+func CreateProblem(c echo.Context) error {
+	contestID := c.Param("id")
+	var body struct {
+		Title       string `json:"title"`
+		Description string `json:"description"`
+	}
+
+	if err := c.Bind(&body); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request body"})
+	}
+
+	db := config.DB
+	var contest models.Contest
+
+	if err := db.First(&contest, "id = ?", contestID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.JSON(http.StatusNotFound, echo.Map{"error": "contest not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
+	}
+
+	problem := models.Problem{
+		ID:          uuid.New(),
+		ContestID:   contest.ID,
+		Title:       body.Title,
+		Description: body.Description,
+	}
+
+	if err := db.Create(&problem).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "could not create problem"})
+	}
+
+	return c.JSON(http.StatusCreated, problem)
+}
+
+// Update Problem in a Contest
+func UpdateProblem(c echo.Context) error {
+	problemID := c.Param("id")
+	db := config.DB
+	var body struct {
+		Title       string `json:"title"`
+		Description string `json:"description"`
+	}
+	if err := c.Bind(&body); err != nil {		
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request body"})
+	}
+	var problem models.Problem
+	if err := db.First(&problem, "id = ?", problemID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.JSON(http.StatusNotFound, echo.Map{"error": "problem not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
+	}
+	problem.Title = body.Title
+	problem.Description = body.Description
+	if err := db.Save(&problem).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "could not update problem"})
+	}
+	return c.JSON(http.StatusOK, problem)
+}
+
+//Delete problem in a contest
+func DeleteProblem(c echo.Context) error {
+	problemID := c.Param("id")
+	db := config.DB
+
+	// Check if the problem exists
+	var problem models.Problem
+	if err := db.First(&problem, "id = ?", problemID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.JSON(http.StatusNotFound, echo.Map{"error": "problem not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
+	}
+
+	// Delete the problem
+	if err := db.Delete(&problem).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "could not delete problem"})
+	}
+
+	return c.JSON(http.StatusOK, echo.Map{"message": "problem deleted successfully"})
+}
+
+// Get all submissions for a problem
+func GetAllSubmissionsByProblemID(c echo.Context) error {
+	problemID := c.Param("id")
+	db := config.DB
+	var submissions []models.Submission
+
+	if err := db.Where("problem_id = ?", problemID).Find(&submissions).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to retrieve submissions"})
+	}
+
+	if len(submissions) == 0 {
+		return c.JSON(http.StatusNotFound, echo.Map{"error": "no submissions found for this problem"})
+	}
+
+	return c.JSON(http.StatusOK, submissions)
+}
