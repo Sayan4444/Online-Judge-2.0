@@ -15,6 +15,7 @@ func RegisterRoutes(e *echo.Echo) {
 	api.Use(handler.JWTMiddleware())
 	api.GET("/profile", handler.GetProfile)
 	api.PUT("/profile", handler.UpdateProfile)
+	api.POST("/submit/:user_id/:problem_id", handler.HandleSubmission)
 
 	// Admin routes	
 	admin := e.Group("/admin")
@@ -29,4 +30,9 @@ func RegisterRoutes(e *echo.Echo) {
 	admin.GET("/problems/:id", handler.GetAllProblemsByContestID)
 	admin.PUT("/problem/:id", handler.UpdateProblem)
 	admin.DELETE("/problem/:id", handler.DeleteProblem)
+	//test case routes
+	admin.POST("/create-testcase/:id", handler.CreateTestCase)
+	admin.GET("/testcases/:id", handler.GetAllTestCasesByProblemID)
+	admin.PUT("/testcase/:id", handler.UpdateTestCase)
+	admin.DELETE("/testcase/:id", handler.DeleteTestCase)
 }

@@ -8,6 +8,7 @@ import (
 	uuid "github.com/google/uuid"
 	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
+	"OJ-backend/services/rabbitmq"
 	"gorm.io/gorm"
 	"net/http"
 	"time"
@@ -429,6 +430,112 @@ func DeleteProblem(c echo.Context) error {
 	return c.JSON(http.StatusOK, echo.Map{"message": "problem deleted successfully"})
 }
 
+// Get all test cases for a problem
+func GetAllTestCasesByProblemID(c echo.Context) error {
+	problemID := c.Param("id")
+	db := config.DB
+	var testCases []models.TestCase
+
+	if err := db.Where("problem_id = ?", problemID).Find(&testCases).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to retrieve test cases"})
+	}
+
+	if len(testCases) == 0 {
+		return c.JSON(http.StatusNotFound, echo.Map{"error": "no test cases found for this problem"})
+	}
+
+	return c.JSON(http.StatusOK, testCases)
+}
+
+//Create Testcase for a problem
+func CreateTestCase(c echo.Context) error {
+	problemID := c.Param("id")
+	var body struct {
+		Input  string `json:"input"`
+		Output string `json:"output"`
+	}
+
+	if err := c.Bind(&body); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request body"})
+	}
+
+	db := config.DB
+	var problem models.Problem
+
+	if err := db.First(&problem, "id = ?", problemID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.JSON(http.StatusNotFound, echo.Map{"error": "problem not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
+	}
+
+	testCase := models.TestCase{
+		ID:        uuid.New(),
+		ProblemID: problem.ID,
+		Input:     body.Input,
+		Output:    body.Output,
+	}
+
+	if err := db.Create(&testCase).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "could not create test case"})
+	}
+
+	return c.JSON(http.StatusCreated, testCase)
+}
+
+//Update Testcase for a problem
+func UpdateTestCase(c echo.Context) error {
+	testCaseID := c.Param("id")
+	db := config.DB
+	var body struct {
+		Input  string `json:"input"`
+		Output string `json:"output"`
+	}
+
+	if err := c.Bind(&body); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request body"})
+	}
+
+	var testCase models.TestCase
+	if err := db.First(&testCase, "id = ?", testCaseID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.JSON(http.StatusNotFound, echo.Map{"error": "test case not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
+	}
+
+	testCase.Input = body.Input
+	testCase.Output = body.Output
+
+	if err := db.Save(&testCase).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "could not update test case"})
+	}
+
+	return c.JSON(http.StatusOK, testCase)
+}
+
+// Delete Testcase for a problem
+func DeleteTestCase(c echo.Context) error {
+	testCaseID := c.Param("id")
+	db := config.DB
+
+	// Check if the test case exists
+	var testCase models.TestCase
+	if err := db.First(&testCase, "id = ?", testCaseID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.JSON(http.StatusNotFound, echo.Map{"error": "test case not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
+	}
+
+	// Delete the test case
+	if err := db.Delete(&testCase).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "could not delete test case"})
+	}
+
+	return c.JSON(http.StatusOK, echo.Map{"message": "test case deleted successfully"})
+}
+
 // Get all submissions for a problem
 func GetAllSubmissionsByProblemID(c echo.Context) error {
 	problemID := c.Param("id")
@@ -444,4 +551,57 @@ func GetAllSubmissionsByProblemID(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, submissions)
+}
+
+// Handle submission for a problem
+func HandleSubmission(c echo.Context) error {
+	userID := c.Param("user_id")
+	problemID := c.Param("problem_id")
+	db := config.DB
+	if userID == "" || problemID == "" {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "user_id and problem_id are required"})
+	}
+	var body struct {
+		SourceCode string `json:"source_code"`
+		Language   string `json:"language"`
+	}
+	if err := c.Bind(&body); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request body"})
+	}
+
+	// Validate user exists
+	var user models.User
+	if err := db.First(&user, "id = ?", userID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.JSON(http.StatusNotFound, echo.Map{"error": "user not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
+	}
+	// Validate problem exists
+	var problem models.Problem
+	if err := db.First(&problem, "id = ?", problemID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.JSON(http.StatusNotFound, echo.Map{"error": "problem not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
+	}
+
+	submission := models.Submission{
+		ID:         uuid.New(),
+		ProblemID:  problem.ID,
+		UserID:     user.ID,
+		SubmittedAt: time.Now(),
+		Result:     "pending", // Initial status
+		SourceCode: body.SourceCode,
+		Language:  body.Language,
+		Score:     0, // Initial score
+	}
+	if err := db.Create(&submission).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "could not create submission"})
+	}
+	// Send submission to RabbitMQ for processing
+	if err := rabbitmq.SendSubmissionToQueue(submission); err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to send submission to queue"})
+	}
+	return c.JSON(http.StatusCreated, submission)
 }

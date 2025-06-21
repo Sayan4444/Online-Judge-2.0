@@ -7,11 +7,15 @@ import (
     "OJ-backend/config"
 	"OJ-backend/routes"
 	"OJ-backend/models"
+	rabbitmq "OJ-backend/services/rabbitmq"
 )
 
 func main() {
 	// Load environment variables
 	config.LoadEnv()
+
+	//Close rabbitmq connection when the application exits
+	defer rabbitmq.CloseRabbitMQ()
 
 	// Initialize Echo instance
 	e := echo.New()
@@ -27,7 +31,7 @@ func main() {
 	} else {
 		e.Logger.Info("Successfully connected to the database", db.Name())
 	}
-	db.AutoMigrate(model.User{}, model.Contest{}, model.Problem{}, model.Submission{})
+	db.AutoMigrate(model.User{}, model.Contest{}, model.Problem{}, model.Submission{},model.TestCase{})
 
 	// Register routes
 	routes.RegisterRoutes(e)
