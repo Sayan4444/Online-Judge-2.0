@@ -9,6 +9,9 @@ type User struct {
 	ID        uuid.UUID `json:"id" gorm:"primaryKey"`
 	Username  string    `json:"username" gorm:"not null"`
 	Email     string    `json:"email" gorm:"unique;not null"`
+	OauthID   string    `json:"oauth_id" gorm:"unique"` 
+	Provider  string    `json:"provider"` 
+	Image 	  string    `json:"image"` 
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
 
 	Contests []Contest `json:"contests" gorm:"many2many:contest_users;"`

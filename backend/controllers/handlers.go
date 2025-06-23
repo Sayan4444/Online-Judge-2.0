@@ -20,6 +20,9 @@ var adminSecret = []byte(config.GetEnv("ADMIN_SECRET"))
 type Claims struct {
 	Username string `json:"username"`
 	Email    string `json:"email"`
+	OauthID  string `json:"oauth_id"`
+	Provider string `json:"provider"`
+	Image    string `json:"image"`
 	jwt.RegisteredClaims
 }
 
@@ -48,6 +51,9 @@ func Login(c echo.Context) error {
 	var body struct {
 		Username string `json:"username"`
 		Email    string `json:"email"`
+		OauthID  string `json:"oauth_id"`
+		Provider string `json:"provider"`
+		Image    string `json:"image"`
 	}
 
 	if err := c.Bind(&body); err != nil || body.Email == "" {
@@ -57,6 +63,9 @@ func Login(c echo.Context) error {
 	claims := &Claims{
 		Username: body.Username,
 		Email:    body.Email,
+		OauthID:  body.OauthID,
+		Provider: body.Provider,
+		Image:    body.Image,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(72 * time.Hour)),
 		},
@@ -72,6 +81,10 @@ func Login(c echo.Context) error {
 				ID:       uuid.New(),
 				Username: body.Username,
 				Email:    body.Email,
+				OauthID:  body.OauthID,
+				Provider: body.Provider,
+				Image:    body.Image,
+				CreatedAt: time.Now(),
 			}
 			if err := db.Create(&user).Error; err != nil {
 				return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to create user"})
@@ -101,6 +114,7 @@ func Login(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, echo.Map{
+		"user": user,
 		"token": t,
 	})
 }
