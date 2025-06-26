@@ -10,24 +10,23 @@ import {
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
-const ContestCard = ({ contest }: { contest: ContestType }) => {
+const ProblemCard = ({ problem }: { problem: ProblemType }) => {
   return (
     <Card className="w-full max-w-md h-auto cursor-pointer">
       <CardHeader>
-        <CardTitle>{contest.name}</CardTitle>
-        <CardDescription>{contest.description}</CardDescription>
+        <CardTitle>{problem.title}</CardTitle>
+        <CardDescription>{problem.description}</CardDescription>
       </CardHeader>
       <CardContent>
-        <p>Start time: {new Date(contest.start_time).toLocaleString()}</p>
-        <p>End time: {new Date(contest.end_time).toLocaleString()}</p>
+        <p>Created at: {new Date(problem.created_at).toLocaleString()}</p>
       </CardContent>
       <CardFooter>
         <Button variant="outline">
-          <Link href={`contest/${contest.id}`}>View Contest</Link>
+          <Link href={`problem/${problem.id}`}>View Problem</Link>
         </Button>
       </CardFooter>
     </Card>
   );
 };
 
-export default ContestCard;
+export default ProblemCard;

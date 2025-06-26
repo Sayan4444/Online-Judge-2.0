@@ -4,6 +4,7 @@ import (
 	"net/http"
 	
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
     "OJ-backend/config"
 	"OJ-backend/routes"
 	"OJ-backend/models"
@@ -19,6 +20,8 @@ func main() {
 
 	// Initialize Echo instance
 	e := echo.New()
+
+	e.Use(middleware.CORS())
 
 	e.GET("/", func(c echo.Context) error {
 		return c.String(http.StatusOK, "Hello, World!")
