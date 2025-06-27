@@ -15,12 +15,17 @@ async function page() {
   );
   return (
     <div>
-      <p>admin dash</p>
-      <LogoutButton />
+      <div className="flex justify-end p-6">
+        <LogoutButton />
+      </div>
       <CreateContest user={session?.user!} />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {contests?.map((contest: any) => (
-          <ContestCard key={contest.id} contest={contest} />
+          <ContestCard
+            key={contest.id}
+            contest={contest}
+            token={session?.user?.token!}
+          />
         ))}
       </div>
     </div>

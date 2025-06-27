@@ -47,3 +47,38 @@ export const CreateProblemByContestId = async (
     return null;
   }
 };
+
+export const updateProblemByProblemId = async (
+  problemId: string,
+  payload: CreateProblemType,
+  token: string
+): Promise<CreateProblemType | null> => {
+  try {
+    const data = await axios.put(`${ADMIN_URL}/problem/${problemId}`, payload, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return data.data;
+  } catch (error) {
+    console.error("Update problem error:", error);
+    return null;
+  }
+};
+
+export const deleteProblemByProblemId = async (
+  problemId: string,
+  token: string
+): Promise<boolean> => {
+  try {
+    await axios.delete(`${ADMIN_URL}/problem/${problemId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return true;
+  } catch (error) {
+    console.error("Delete problem error:", error);
+    return false;
+  }
+};

@@ -14,11 +14,14 @@ const page = async ({ params }: { params: Promise<{ id: string }> }) => {
   const problems = await fetchProblemsByContestId(id, session?.user?.token!);
   return (
     <>
-      <h1>Contest ID: {id}</h1>
       <CreateProblem id={id} token={session?.user?.token!} />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6 mx-4 w-full">
         {problems.map((problem: any) => (
-          <ProblemCard key={problem.id} problem={problem} />
+          <ProblemCard
+            key={problem.id}
+            problem={problem}
+            token={session?.user?.token!}
+          />
         ))}
       </div>
     </>

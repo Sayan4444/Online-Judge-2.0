@@ -14,3 +14,11 @@ type ProblemType = {
   contest_id: string;
   created_at: Date;
 };
+
+type TestcaseType = {
+  id: string;
+  input: string;
+  output: string;
+  problem_id: string;
+  created_at: Date;
+};

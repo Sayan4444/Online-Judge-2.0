@@ -1,44 +1,46 @@
 "use client";
-import { CustomUser } from "@/app/api/auth/[...nextauth]/options";
-import { Button } from "@/components/ui/button";
-import React, { FormEvent, useState } from "react";
-import { Calendar } from "@/components/ui/calendar";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import React, { useState } from "react";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { ChevronDownIcon } from "lucide-react";
-import axios from "axios";
-import { ADMIN_URL } from "@/lib/apiEndpoints";
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Pencil } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Calendar } from "@/components/ui/calendar";
+import { updateContest } from "@/fetch/contest";
 
-const CreateContest = ({ user }: { user: CustomUser }) => {
+const EditContest = ({
+  contestID,
+  token,
+}: {
+  contestID: string;
+  token: string;
+}) => {
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [startTime, setStartTime] = useState<string>("8:30:00");
   const [endTime, setEndTime] = useState<string>("10:30:00");
 
-  const handleCreateContest = async (e: FormEvent) => {
+  const handleUpdateContest = async (e: React.FormEvent) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
     const contestTitle = formData.get("contestTitle") as string;
     const contestDescription = formData.get("contestDescription") as string;
-
-    if (
-      !contestTitle ||
-      !contestDescription ||
-      !date ||
-      !startTime ||
-      !endTime
-    ) {
-      alert("Please fill in all fields.");
+    if (!date) {
+      console.log("Please select a date.");
       return;
     }
-
     const contestStartTime = new Date(date);
     const contestEndTime = new Date(date);
+
     const [startHours, startMinutes] = startTime.split(":").map(Number);
     const [endHours, endMinutes] = endTime.split(":").map(Number);
 
@@ -48,22 +50,28 @@ const CreateContest = ({ user }: { user: CustomUser }) => {
       start_time: new Date(contestStartTime.setHours(startHours, startMinutes)),
       end_time: new Date(contestEndTime.setHours(endHours, endMinutes)),
     };
-
-    const data = await axios.post(`${ADMIN_URL}/create-contest`, payload, {
-      headers: {
-        Authorization: `Bearer ${user.token}`,
-      },
-    });
-
-    console.log("Contest created successfully:", data);
+    console.log("Payload for updating contest:", payload);
+    const data = await updateContest(token, payload, contestID);
+    console.log("Contest updated successfully:", data);
   };
 
   return (
-    <>
-      <div className="flex flex-col items-center justify-center mb-4">
-        <h1 className="text-2xl font-bold mb-4">Create Contest</h1>
-        <p className="mb-4">Welcome, {user.name || "Admin"}!</p>
-        <form className="w-full max-w-md" onSubmit={handleCreateContest}>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button>
+          <Pencil className="h-4 w-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <form onSubmit={handleUpdateContest}>
+          <DialogHeader>
+            <DialogTitle>Are you absolutely sure?</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. This will permanently delete your
+              account and remove your data from our servers.
+            </DialogDescription>
+          </DialogHeader>
+
           <div className="mb-4">
             <Label
               htmlFor="contestTitle"
@@ -91,32 +99,14 @@ const CreateContest = ({ user }: { user: CustomUser }) => {
               <Label htmlFor="date-picker" className="px-1">
                 Date
               </Label>
-              <Popover open={open} onOpenChange={setOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    id="date-picker"
-                    className="w-32 justify-between font-normal"
-                  >
-                    {date ? date.toLocaleDateString() : "Select date"}
-                    <ChevronDownIcon />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  className="w-auto overflow-hidden p-0"
-                  align="start"
-                >
-                  <Calendar
-                    mode="single"
-                    selected={date}
-                    captionLayout="dropdown"
-                    onSelect={(date) => {
-                      setDate(date);
-                      setOpen(false);
-                    }}
-                  />
-                </PopoverContent>
-              </Popover>
+              <Calendar
+                mode="single"
+                selected={date}
+                captionLayout="dropdown"
+                onSelect={(date) => {
+                  setDate(date);
+                }}
+              />
             </div>
             <div className="flex flex-col gap-3">
               <Label htmlFor="time-picker" className="px-1">
@@ -145,11 +135,16 @@ const CreateContest = ({ user }: { user: CustomUser }) => {
               />
             </div>
           </div>
-          <Button type="submit">Create Contest</Button>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button type="submit">Save changes</Button>
+          </DialogFooter>
         </form>
-      </div>
-    </>
+      </DialogContent>
+    </Dialog>
   );
 };
 
-export default CreateContest;
+export default EditContest;
