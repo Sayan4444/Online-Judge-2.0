@@ -10,7 +10,11 @@ const LogoutButton = () => {
       redirect: true,
     });
   };
-  return <Button onClick={handleLogout}>logout</Button>;
+  return (
+    <Button className="rounded-none" variant="secondary" onClick={handleLogout}>
+      logout
+    </Button>
+  );
 };
 
 export default LogoutButton;
