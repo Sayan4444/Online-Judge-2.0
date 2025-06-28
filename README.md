@@ -8,7 +8,9 @@ A full-stack **Online Judge (OJ)** platform where users can participate in conte
 
 - **Frontend**: [Next.js](https://nextjs.org/) (React-based UI framework)
 - **Backend**: [Go](https://golang.org/) (Echo framework)
-- **Code Execution**: [nsjail](https://github.com/google/nsjail) (Secure sandboxing of untrusted code)
+- **Worker**: [Go](https://golang.org/) (Worker pool for code execution)
+- **Code Execution**: [isolate](https://github.com/ioi/isolate) (Secure sandboxing of untrusted code)
+- **Message Broker**: [RabbitMQ](https://www.rabbitmq.com/) (Message broker for worker pool)
 
 ---
 
@@ -27,7 +29,7 @@ A full-stack **Online Judge (OJ)** platform where users can participate in conte
 - **Go** `v1.23+` – [Install Go](https://go.dev/dl/)
 - **Node.js** `v20+` – for frontend
 - **Docker** (optional) – for local containerized setup
-- **nsjail** – installed on the host (Linux only)
+- **isolate** – installed on the host (Linux only)
 
 ---
 
