@@ -15,6 +15,10 @@ func RegisterRoutes(e *echo.Echo) {
 	api.Use(handler.JWTMiddleware())
 	api.GET("/profile", handler.GetProfile)
 	api.PUT("/profile", handler.UpdateProfile)
+	api.GET("/contests", handler.GetAllContests)
+	api.GET("/problems/:id", handler.GetAllProblemsByContestID)
+	api.GET("/problem/:id", handler.GetProblemByID)
+	api.GET("/testcases/:id", handler.GetAllTestCasesByProblemID)
 	api.POST("/submit/:user_id/:problem_id", handler.HandleSubmission)
 
 	// Admin routes	

@@ -1,4 +1,4 @@
-import { ADMIN_URL } from "@/lib/apiEndpoints";
+import { ADMIN_URL, API_URL } from "@/lib/apiEndpoints";
 import axios from "axios";
 
 interface UpdateContestType {
@@ -71,5 +71,26 @@ export const deleteContest = async (
   } catch (error) {
     console.error("Delete contest error:", error);
     return false;
+  }
+};
+
+export const fetchContestsUser = async (
+  token: string
+): Promise<ContestType[]> => {
+  if (!token) {
+    console.error("User token is not available");
+    return [];
+  }
+  try {
+    const response = await axios.get(`${API_URL}/contests`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const contests = response.data;
+    return contests ?? [];
+  } catch (error) {
+    console.error("Fetch contests error:", error);
+    return [];
   }
 };

@@ -350,7 +350,7 @@ func GetAllProblemsByContestID(c echo.Context) error {
 	db := config.DB
 	var problems []models.Problem
 
-	if err := db.Where("contest_id = ?", contestID).Find(&problems).Error; err != nil {
+	if err := db.Preload("Tests").Where("contest_id = ?", contestID).Find(&problems).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to retrieve problems"})
 	}
 
@@ -359,6 +359,22 @@ func GetAllProblemsByContestID(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, problems)
+}
+
+// Get Problem by ID
+func GetProblemByID(c echo.Context) error {
+	problemID := c.Param("id")
+	db := config.DB
+	var problem models.Problem
+
+	if err := db.Preload("Tests").First(&problem, "id = ?", problemID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.JSON(http.StatusNotFound, echo.Map{"error": "problem not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
+	}
+
+	return c.JSON(http.StatusOK, problem)
 }
 
 // Create Problems in a Contest

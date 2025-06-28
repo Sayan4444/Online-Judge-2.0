@@ -1,4 +1,4 @@
-import { ADMIN_URL } from "@/lib/apiEndpoints";
+import { ADMIN_URL, API_URL } from "@/lib/apiEndpoints";
 import axios from "axios";
 
 interface CreateProblemType {
@@ -80,5 +80,41 @@ export const deleteProblemByProblemId = async (
   } catch (error) {
     console.error("Delete problem error:", error);
     return false;
+  }
+};
+
+export const fetchProblemsByContestIdUser = async (
+  id: string,
+  token: string
+): Promise<ProblemType[]> => {
+  const contestId = id;
+  try {
+    const data = await axios.get(`${API_URL}/problems/${contestId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const problems = data.data;
+    return problems ?? [];
+  } catch (error) {
+    console.error("Fetch problems error:", error);
+    return [];
+  }
+};
+
+export const fetchProblemByProblemId = async (
+  id: string,
+  token: string
+): Promise<ProblemType | null> => {
+  try {
+    const data = await axios.get(`${API_URL}/problem/${id}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return data.data;
+  } catch (error) {
+    console.error("Fetch problem error:", error);
+    return null;
   }
 };

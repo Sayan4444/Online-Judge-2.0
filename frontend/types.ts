@@ -13,6 +13,7 @@ type ProblemType = {
   description: string;
   contest_id: string;
   created_at: Date;
+  tests?: TestcaseType[];
 };
 
 type TestcaseType = {
