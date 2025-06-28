@@ -14,9 +14,6 @@ import (
 	"time"
 )
 
-var jwtSecret = []byte(config.GetEnv("JWT_SECRET"))
-var adminSecret = []byte(config.GetEnv("ADMIN_SECRET"))
-
 type Claims struct {
 	Username string `json:"username"`
 	Email    string `json:"email"`
@@ -28,6 +25,7 @@ type Claims struct {
 
 // JWT middleware for user authentication
 func JWTMiddleware() echo.MiddlewareFunc {
+	var jwtSecret = []byte(config.GetEnv("JWT_SECRET"))
 	return echojwt.WithConfig(echojwt.Config{
 		SigningKey: jwtSecret,
 		ContextKey: "user",
@@ -108,6 +106,7 @@ func Login(c echo.Context) error {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
+	var jwtSecret = []byte(config.GetEnv("JWT_SECRET"))
 	t, err := token.SignedString(jwtSecret)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to generate token"})
@@ -205,6 +204,7 @@ func AdminLogin(c echo.Context) error {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
+	var adminSecret = []byte(config.GetEnv("ADMIN_SECRET"))
 	signedToken, err := token.SignedString(adminSecret)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to generate token"})
@@ -214,6 +214,7 @@ func AdminLogin(c echo.Context) error {
 }
 
 func AdminJWTMiddleware() echo.MiddlewareFunc {
+	var adminSecret = []byte(config.GetEnv("ADMIN_SECRET"))
 	return echojwt.WithConfig(echojwt.Config{
 		SigningKey: adminSecret,
 		ContextKey: "admin",
