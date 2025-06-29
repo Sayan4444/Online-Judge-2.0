@@ -47,8 +47,8 @@ func main() {
 
 	// 3. Declare a durable queue
 	q, err := ch.QueueDeclare(
-		"task_queue", // name
-		true,         // durable - messages will survive broker restarts
+		"submissions", // name
+		false,         // durable - messages will survive broker restarts
 		false,        // delete when unused
 		false,        // exclusive - only accessible by this connection
 		false,        // no-wait - don't wait for server confirmation
