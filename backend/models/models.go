@@ -50,6 +50,15 @@ type Submission struct {
 	Language  string    `json:"language" gorm:"not null"` // Programming language used for the submission
 	SourceCode string    `json:"source_code" gorm:"not null"`
 	Score	 int       `json:"score" gorm:"default:0"` 
+	StdInput  string    `json:"std_input"`
+	ExpectedOutput string `json:"expected_output"`
+	StdOutput string `json:"std_output"`
+	StdError  string    `json:"std_error"`
+	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
+	CompileOutput string `json:"compile_output"` // Output from the compilation process
+	ExitSignal int `json:"exit_signal"` // Exit signal from the execution of the code
+	ExitCode int `json:"exit_code"` // Exit code from the execution of the code
+	CallbackURL string `json:"callback_url"` // URL to send the result of the submission
 
 	Problem   Problem  `json:"problem" gorm:"foreignKey:ProblemID"`
 	User      User     `json:"user" gorm:"foreignKey:UserID"`
@@ -63,4 +72,15 @@ type TestCase struct {
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
 
 	Problem   Problem  `json:"problem" gorm:"foreignKey:ProblemID"`
+}
+
+type Language struct {
+	ID		  int `json:"id" gorm:"primaryKey"`
+	Name      string `json:"name" gorm:"not null"` // Name of the programming language
+	CompileCommand string `json:"compile_command" gorm:"not null"` // Command to compile the code
+	RunCommand string `json:"run_command" gorm:"not null"` // Command to run	
+	TimeLimit int `json:"time_limit" gorm:"not null"` // Time limit for the submission in milliseconds
+	MemoryLimit int `json:"memory_limit" gorm:"not null"` // Memory limit for the submission in MB
+	WallLimit int `json:"wall_limit" gorm:"not null"` // Wall time limit for the submission in seconds
+	SrcFile string `json:"src_file" gorm:"not null"` // Source file name for the submission
 }

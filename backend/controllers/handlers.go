@@ -617,6 +617,23 @@ func HandleSubmission(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
 	}
 
+	var testCases []models.TestCase
+
+	if err := db.Where("problem_id = ?", problem.ID).Find(&testCases).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to retrieve test cases"})
+	}
+	if len(testCases) == 0 {
+		return c.JSON(http.StatusNotFound, echo.Map{"error": "no test cases found for this problem"})
+	}
+
+	var language models.Language
+	if err := db.First(&language, "name = ?", body.Language).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.JSON(http.StatusNotFound, echo.Map{"error": "language not supported"})
+		}
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
+	}
+
 	submission := models.Submission{
 		ID:         uuid.New(),
 		ProblemID:  problem.ID,
@@ -626,6 +643,14 @@ func HandleSubmission(c echo.Context) error {
 		SourceCode: body.SourceCode,
 		Language:  body.Language,
 		Score:     0, // Initial score
+		StdInput: testCases[0].Input, // Assuming the first test case input is used for submission
+		ExpectedOutput: testCases[0].Output, // Assuming the first test case output	
+		StdOutput:  "", // Will be filled after execution
+		StdError:   "", // Will be filled after execution
+		CompileOutput: "", // Will be filled after compilation
+		ExitSignal: 0, // Will be filled after execution
+		ExitCode:   0, // Will be filled after execution
+		CallbackURL: "", // Optional, can be set if needed
 	}
 	if err := db.Create(&submission).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "could not create submission"})

@@ -33,7 +33,7 @@ func main() {
 	} else {
 		e.Logger.Info("Successfully connected to the database", db.Name())
 	}
-	db.AutoMigrate(model.User{}, model.Contest{}, model.Problem{}, model.Submission{},model.TestCase{})
+	db.AutoMigrate(model.User{}, model.Contest{}, model.Problem{}, model.Submission{},model.TestCase{}, model.Language{})
 
 	// Register routes
 	routes.RegisterRoutes(e)
