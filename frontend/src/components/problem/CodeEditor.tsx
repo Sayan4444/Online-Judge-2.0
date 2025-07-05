@@ -25,13 +25,9 @@ const CodeEditor = ({
   problem: ProblemType;
 }) => {
   const [language, setLanguage] = useState("c_cpp");
-  const onChange = (newValue: string) => {
-    console.log("change", newValue);
-  };
   const [code, setCode] = useState("");
   const handleCodeChange = (newValue: string) => {
     setCode(newValue);
-    onChange(newValue);
   };
   const handleSubmit = async () => {
     if (!user || !problem) {
@@ -80,11 +76,11 @@ const CodeEditor = ({
         showPrintMargin={true}
         showGutter={true}
         highlightActiveLine={true}
-        value={``}
+        value={code}
         onChange={handleCodeChange}
         setOptions={{
           enableBasicAutocompletion: true,
-          enableLiveAutocompletion: false,
+          enableLiveAutocompletion: true,
           enableSnippets: false,
           enableMobileMenu: false,
           showLineNumbers: true,
