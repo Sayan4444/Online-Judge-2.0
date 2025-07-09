@@ -1,10 +1,11 @@
-import LoginButton from "@/components/auth/LoginButton";
+import Hero from "@/components/landing/Hero";
+import LandingNavbar from "@/components/landing/LandingNavbar";
 
 export default function Home() {
   return (
     <>
-      <div>Login</div>
-      <LoginButton />
+      <LandingNavbar />
+      <Hero />
     </>
   );
 }

@@ -6,6 +6,7 @@ import {
 } from "../../api/auth/[...nextauth]/options";
 import ProblemTable from "@/components/contest/ProblemTable";
 import { fetchProblemsByContestIdUser } from "@/fetch/problem";
+import Navbar from "@/components/dashboard/Navbar";
 
 const contest = async ({ params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params;
@@ -17,6 +18,7 @@ const contest = async ({ params }: { params: Promise<{ id: string }> }) => {
 
   return (
     <>
+      <Navbar user={session?.user} />
       <ProblemTable problems={problems} />
     </>
   );

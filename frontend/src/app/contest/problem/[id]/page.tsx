@@ -2,6 +2,7 @@ import {
   authOptions,
   CustomSession,
 } from "@/app/api/auth/[...nextauth]/options";
+import Navbar from "@/components/dashboard/Navbar";
 import CodeEditor from "@/components/problem/CodeEditor";
 import ProblemDesc from "@/components/problem/ProblemDesc";
 import { fetchProblemByProblemId } from "@/fetch/problem";
@@ -17,10 +18,13 @@ const page = async ({ params }: { params: Promise<{ id: string }> }) => {
   const problem = await fetchProblemByProblemId(id, session.user.token!);
 
   return (
-    <div className="flex p-4">
-      <ProblemDesc problem={problem!} />
-      <CodeEditor user={session?.user} problem={problem!} />
-    </div>
+    <>
+      <Navbar user={session?.user} />
+      <div className="flex p-4">
+        <ProblemDesc problem={problem!} />
+        <CodeEditor user={session?.user} problem={problem!} />
+      </div>
+    </>
   );
 };
 
