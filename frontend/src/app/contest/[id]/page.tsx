@@ -7,6 +7,8 @@ import {
 import ProblemTable from "@/components/contest/ProblemTable";
 import { fetchProblemsByContestIdUser } from "@/fetch/problem";
 import Navbar from "@/components/dashboard/Navbar";
+import { fetchLeaderboard } from "@/fetch/leaderboard";
+import LeaderBoard from "@/components/contest/LeaderBoard";
 
 const contest = async ({ params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params;
@@ -19,7 +21,10 @@ const contest = async ({ params }: { params: Promise<{ id: string }> }) => {
   return (
     <>
       <Navbar user={session?.user} />
-      <ProblemTable problems={problems} />
+      <div className="flex">
+        <ProblemTable problems={problems} />
+        <LeaderBoard contestId={id} token={session.user.token!} />
+      </div>
     </>
   );
 };

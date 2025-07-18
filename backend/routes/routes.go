@@ -9,24 +9,24 @@ func RegisterRoutes(e *echo.Echo) {
 	// Public routes
 	e.POST("/login", handler.Login)
 	e.POST("/admin/login", handler.AdminLogin)
-
+	e.GET("/contests",handler.GetAllContests)
+	
 	// Protected routes
 	api := e.Group("/api")
 	api.Use(handler.JWTMiddleware())
 	api.GET("/profile", handler.GetProfile)
 	api.PUT("/profile", handler.UpdateProfile)
-	api.GET("/contests", handler.GetAllContests)
 	api.GET("/problems/:id", handler.GetAllProblemsByContestID)
 	api.GET("/problem/:id", handler.GetProblemByID)
 	api.GET("/testcases/:id", handler.GetAllTestCasesByProblemID)
 	api.POST("/submit/:user_id/:problem_id", handler.HandleSubmission)
+	api.GET("/leaderboard/:contest_id", handler.GetLeaderboardByContestID)
 
 	// Admin routes	
 	admin := e.Group("/admin")
 	admin.Use(handler.AdminJWTMiddleware())
 	//contest routes
 	admin.POST("/create-contest", handler.CreateContest)
-	admin.GET("/contests", handler.GetAllContests)
 	admin.PUT("/contest/:id", handler.UpdateContest)
 	admin.DELETE("/contest/:id", handler.DeleteContest)
 	//problem routes

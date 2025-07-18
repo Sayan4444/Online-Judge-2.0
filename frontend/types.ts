@@ -23,3 +23,9 @@ type TestcaseType = {
   problem_id: string;
   created_at: Date;
 };
+
+type LeaderboardEntryType = {
+  user_id: string;
+  username: string;
+  total_score: number;
+};

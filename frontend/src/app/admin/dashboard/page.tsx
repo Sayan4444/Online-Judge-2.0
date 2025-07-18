@@ -10,9 +10,7 @@ import { getServerSession } from "next-auth";
 
 async function page() {
   const session: CustomSession | null = await getServerSession(authOptions);
-  const contests: Array<ContestType> | [] = await fetchContests(
-    session?.user?.token!
-  );
+  const contests: Array<ContestType> | [] = await fetchContests();
   return (
     <div>
       <div className="flex justify-end p-6">

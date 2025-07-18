@@ -16,6 +16,7 @@ import "ace-builds/src-noconflict/theme-monokai";
 import "ace-builds/src-noconflict/ext-language_tools";
 import { CustomUser } from "@/app/api/auth/[...nextauth]/options";
 import { submitCode } from "@/fetch/submission";
+import { toast } from "sonner";
 
 const CodeEditor = ({
   user,
@@ -35,6 +36,10 @@ const CodeEditor = ({
       return;
     }
     try {
+      if (code === "") {
+        toast.info("No code to submit");
+        return;
+      }
       const data = await submitCode(
         problem.id,
         user.id!,
@@ -42,9 +47,11 @@ const CodeEditor = ({
         code,
         language
       );
+      toast.success("Code submitted successfully!");
       console.log("Code submitted successfully:", data);
     } catch (error) {
       console.error("Error submitting code:", error);
+      toast.error("Failed to submit code. Please try again.");
     }
   };
 

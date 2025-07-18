@@ -3,12 +3,12 @@ package handler
 import (
 	"OJ-backend/config"
 	models "OJ-backend/models"
+	"OJ-backend/services/rabbitmq"
 	"fmt"
 	"github.com/golang-jwt/jwt/v5"
 	uuid "github.com/google/uuid"
 	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
-	"OJ-backend/services/rabbitmq"
 	"gorm.io/gorm"
 	"net/http"
 	"time"
@@ -76,12 +76,12 @@ func Login(c echo.Context) error {
 		if err == gorm.ErrRecordNotFound {
 			// User does not exist, create a new user
 			user = models.User{
-				ID:       uuid.New(),
-				Username: body.Username,
-				Email:    body.Email,
-				OauthID:  body.OauthID,
-				Provider: body.Provider,
-				Image:    body.Image,
+				ID:        uuid.New(),
+				Username:  body.Username,
+				Email:     body.Email,
+				OauthID:   body.OauthID,
+				Provider:  body.Provider,
+				Image:     body.Image,
 				CreatedAt: time.Now(),
 			}
 			if err := db.Create(&user).Error; err != nil {
@@ -113,7 +113,7 @@ func Login(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, echo.Map{
-		"user": user,
+		"user":  user,
 		"token": t,
 	})
 }
@@ -421,7 +421,7 @@ func UpdateProblem(c echo.Context) error {
 		Title       string `json:"title"`
 		Description string `json:"description"`
 	}
-	if err := c.Bind(&body); err != nil {		
+	if err := c.Bind(&body); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request body"})
 	}
 	var problem models.Problem
@@ -439,7 +439,7 @@ func UpdateProblem(c echo.Context) error {
 	return c.JSON(http.StatusOK, problem)
 }
 
-//Delete problem in a contest
+// Delete problem in a contest
 func DeleteProblem(c echo.Context) error {
 	problemID := c.Param("id")
 	db := config.DB
@@ -478,7 +478,7 @@ func GetAllTestCasesByProblemID(c echo.Context) error {
 	return c.JSON(http.StatusOK, testCases)
 }
 
-//Create Testcase for a problem
+// Create Testcase for a problem
 func CreateTestCase(c echo.Context) error {
 	problemID := c.Param("id")
 	var body struct {
@@ -514,7 +514,7 @@ func CreateTestCase(c echo.Context) error {
 	return c.JSON(http.StatusCreated, testCase)
 }
 
-//Update Testcase for a problem
+// Update Testcase for a problem
 func UpdateTestCase(c echo.Context) error {
 	testCaseID := c.Param("id")
 	db := config.DB
@@ -635,22 +635,23 @@ func HandleSubmission(c echo.Context) error {
 	}
 
 	submission := models.Submission{
-		ID:         uuid.New(),
-		ProblemID:  problem.ID,
-		UserID:     user.ID,
-		SubmittedAt: time.Now(),
-		Result:     "pending", // Initial status
-		SourceCode: body.SourceCode,
-		Language:  body.Language,
-		Score:     0, // Initial score
-		StdInput: testCases[0].Input, // Assuming the first test case input is used for submission
-		ExpectedOutput: testCases[0].Output, // Assuming the first test case output	
-		StdOutput:  "", // Will be filled after execution
-		StdError:   "", // Will be filled after execution
-		CompileOutput: "", // Will be filled after compilation
-		ExitSignal: 0, // Will be filled after execution
-		ExitCode:   0, // Will be filled after execution
-		CallbackURL: "", // Optional, can be set if needed
+		ID:             uuid.New(),
+		ProblemID:      problem.ID,
+		UserID:         user.ID,
+		ContestID:      problem.ContestID,
+		SubmittedAt:    time.Now(),
+		Result:         "pending", // Initial status
+		SourceCode:     body.SourceCode,
+		Language:       body.Language,
+		Score:          0,                   // Initial score
+		StdInput:       testCases[0].Input,  // Assuming the first test case input is used for submission
+		ExpectedOutput: testCases[0].Output, // Assuming the first test case output
+		StdOutput:      "",                  // Will be filled after execution
+		StdError:       "",                  // Will be filled after execution
+		CompileOutput:  "",                  // Will be filled after compilation
+		ExitSignal:     0,                   // Will be filled after execution
+		ExitCode:       0,                   // Will be filled after execution
+		CallbackURL:    "",                  // Optional, can be set if needed
 	}
 	if err := db.Create(&submission).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "could not create submission"})
@@ -660,4 +661,37 @@ func HandleSubmission(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to send submission to queue"})
 	}
 	return c.JSON(http.StatusCreated, submission)
+}
+
+func GetSubmissionsByContestID(c echo.Context) error {
+	contestID := c.Param("contest_id")
+	db := config.DB
+	var submissions []models.Submission
+	if err := db.Preload("Problem").Preload("User").Where("contest_id = ?", contestID).Find(&submissions).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to retrieve submissions"})
+	}
+	if len(submissions) == 0 {
+		return c.JSON(http.StatusNotFound, echo.Map{"error": "no submissions found for this contest"})
+	}
+	return c.JSON(http.StatusOK, submissions)
+}
+
+func GetLeaderboardByContestID(c echo.Context) error {
+	contestID := c.Param("contest_id")
+	db := config.DB
+
+	var leaderboard []models.LeaderboardEntry
+
+	if err := db.
+		Table("submissions").
+		Select("user_id, users.username, SUM(score) as total_score, MIN(submitted_at) as first_submission").
+		Joins("JOIN users ON submissions.user_id = users.id").
+		Where("contest_id = ?", contestID).
+		Group("user_id, users.username").
+		Order("total_score DESC, first_submission ASC").
+		Scan(&leaderboard).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to retrieve leaderboard"})
+	}
+
+	return c.JSON(http.StatusOK, leaderboard)
 }
