@@ -4,6 +4,7 @@ import (
 	"OJ-backend/config"
 	models "OJ-backend/models"
 	"OJ-backend/services/rabbitmq"
+	"OJ-backend/services/sse"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -803,6 +804,25 @@ func HandleSubmissionCallback(c echo.Context) error {
 	if err := db.Save(&submission).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to update submission"})
 	}
+
+	// Broadcast update to SSE clients
+	sseUpdate := sse.SubmissionUpdate{
+		SubmissionID:  callbackPayload.SubmissionID,
+		Result:        callbackPayload.Result,
+		Score:         callbackPayload.Score,
+		StdOutput:     callbackPayload.StdOutput,
+		StdError:      callbackPayload.StdError,
+		CompileOutput: callbackPayload.CompileOutput,
+		ExitSignal:    callbackPayload.ExitSignal,
+		ExitCode:      callbackPayload.ExitCode,
+		Time:          callbackPayload.Time,
+		Memory:        callbackPayload.Memory,
+		Message:       callbackPayload.Message,
+		Status:        "completed",
+	}
+
+	// Broadcast to the user who made the submission
+	sse.GlobalSSEManager.BroadcastToUser(submission.UserID.String(), callbackPayload.SubmissionID, sseUpdate)
 
 	return c.JSON(http.StatusOK, echo.Map{
 		"message":       "submission updated successfully",

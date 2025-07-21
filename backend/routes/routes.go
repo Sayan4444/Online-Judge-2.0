@@ -2,6 +2,7 @@ package routes
 
 import (
 	handler "OJ-backend/controllers"
+	"OJ-backend/services/sse"
 
 	"github.com/labstack/echo/v4"
 )
@@ -25,6 +26,8 @@ func RegisterRoutes(e *echo.Echo) {
 	api.GET("/testcases/:id", handler.GetAllTestCasesByProblemID)
 	api.POST("/submit/:user_id/:problem_id", handler.HandleSubmission)
 	api.GET("/leaderboard/:contest_id", handler.GetLeaderboardByContestID)
+	// SSE endpoint for real-time submission updates
+	api.GET("/submission/:user_id/:submission_id/events", sse.HandleSSEConnection)
 
 	// Admin routes
 	admin := e.Group("/admin")
