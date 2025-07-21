@@ -1,7 +1,11 @@
 package main
 
 import (
+	isolatejob "OJ-Worker/isolateJob"
+	"OJ-Worker/schema"
+	"OJ-Worker/utils"
 	"context"
+	"encoding/json"
 	"log"
 	"os/signal"
 	"strconv"
@@ -18,12 +22,94 @@ func failOnError(err error, msg string) {
 	}
 }
 
+// processMessage processes a submission message
+func processMessage(ctx context.Context, d amqp091.Delivery, workerTag string) {
+	log.Printf("%s: Processing submission: %s", workerTag, d.Body)
+
+	// Parse submission from message
+	var submission schema.RabbitMQPayload
+	if err := json.Unmarshal(d.Body, &submission); err != nil {
+		log.Printf("%s: Failed to parse submission: %v", workerTag, err)
+		d.Nack(false, false) // Don't requeue malformed messages
+		return
+	}
+
+	// Initialize response
+	response := &schema.JudgeResponse{}
+
+	// Process submission using isolate
+	if err := isolatejob.ProcessSubmission(&submission, response, ctx); err != nil {
+		log.Printf("%s: Failed to process submission %s: %v", workerTag, submission.SubmissionID, err)
+		response.Result = schema.ResultSystemError
+		response.Message = "Internal processing error"
+	}
+
+	// Calculate score based on result
+	score := 0
+	if response.Result == schema.ResultAccepted {
+		score = 100 // Full score for accepted solution
+	}
+
+	// Prepare callback payload
+	callbackPayload := utils.CallbackPayload{
+		SubmissionID:  submission.SubmissionID.String(),
+		Result:        response.Result,
+		Score:         score,
+		StdOutput:     response.Stdout,
+		StdError:      response.Stderr,
+		CompileOutput: response.CompileOutput,
+		ExitSignal:    parseIntFromString(response.ExitSignal),
+		ExitCode:      parseIntFromString(response.ExitCode),
+		Time:          response.Time,
+		Memory:        response.Memory,
+		Message:       response.Message,
+	}
+
+	// Send callback if callback URL is provided
+	if submission.CallBackURL != "" {
+		webhookSecret := utils.GetEnv("WEBHOOK_SECRET")
+		if webhookSecret == "" {
+			log.Printf("%s: Warning: WEBHOOK_SECRET not set, using default", workerTag)
+			webhookSecret = "default-secret" // Fallback - should match backend
+		}
+
+		if err := utils.SendCallback(submission.CallBackURL, callbackPayload, webhookSecret); err != nil {
+			log.Printf("%s: Failed to send callback for submission %s: %v", workerTag, submission.SubmissionID, err)
+		} else {
+			log.Printf("%s: Successfully sent callback for submission %s", workerTag, submission.SubmissionID)
+		}
+	} else {
+		log.Printf("%s: No callback URL provided for submission %s", workerTag, submission.SubmissionID)
+	}
+
+	log.Printf("%s: Completed processing submission %s with result: %s", workerTag, submission.SubmissionID, response.Result)
+}
+
+// parseIntFromString safely parses integer from string, returns 0 if parsing fails
+func parseIntFromString(s string) int {
+	if i, err := strconv.Atoi(s); err == nil {
+		return i
+	}
+	return 0
+}
+
 func main() {
+	// Load environment variables
+	utils.LoadEnv()
+
 	// Configure the number of concurrent workers from environment variables.
-	numWorkers := 5
+	numWorkers, err := strconv.Atoi(utils.GetEnv("NUM_WORKERS"))
+	if err != nil {
+		numWorkers = 5
+	}
+
+	log.Printf("Starting %d workers", numWorkers)
 
 	// Configure RabbitMQ connection from environment variables.
-	amqpURI := "amqp://guest:guest@localhost:5672"
+	amqpURI := utils.GetEnv("RABBITMQ_URL")
+	if amqpURI == "" {
+		amqpURI = "amqp://guest:guest@localhost:5672" // Default fallback
+	}
 
 	// 1. Connect to RabbitMQ
 	conn, err := amqp091.Dial(amqpURI)
@@ -48,11 +134,11 @@ func main() {
 	// 3. Declare a durable queue
 	q, err := ch.QueueDeclare(
 		"submissions", // name
-		false,         // durable - messages will survive broker restarts
-		false,        // delete when unused
-		false,        // exclusive - only accessible by this connection
-		false,        // no-wait - don't wait for server confirmation
-		nil,          // arguments
+		true,          // durable - messages will survive broker restarts
+		false,         // delete when unused
+		false,         // exclusive - only accessible by this connection
+		false,         // no-wait - don't wait for server confirmation
+		nil,           // arguments
 	)
 	failOnError(err, "Failed to declare a queue")
 
@@ -97,10 +183,7 @@ func main() {
 						log.Printf("%s: Message channel closed. Worker exiting.", workerTag)
 						return
 					}
-					// processMessage(ctx, d, workerTag)
-					log.Printf("%s: Received a message: %s", workerTag, d.Body)
-					time.Sleep(15 * time.Second)
-					log.Printf("[*] %s: Processed message: %s", workerTag, d.Body)
+					processMessage(ctx, d, workerTag)
 					d.Ack(false) // Acknowledge the message completed
 				case <-ctx.Done():
 					log.Printf("%s: Application context cancelled. Worker exiting gracefully.", workerTag)

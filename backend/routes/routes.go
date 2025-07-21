@@ -1,16 +1,20 @@
 package routes
 
 import (
-	"github.com/labstack/echo/v4"	
-	"OJ-backend/controllers"
+	handler "OJ-backend/controllers"
+
+	"github.com/labstack/echo/v4"
 )
 
 func RegisterRoutes(e *echo.Echo) {
 	// Public routes
 	e.POST("/login", handler.Login)
 	e.POST("/admin/login", handler.AdminLogin)
-	e.GET("/contests",handler.GetAllContests)
-	
+	e.GET("/contests", handler.GetAllContests)
+
+	// Callback route for workers (HMAC authenticated)
+	e.POST("/callback/submission", handler.HandleSubmissionCallback)
+
 	// Protected routes
 	api := e.Group("/api")
 	api.Use(handler.JWTMiddleware())
@@ -22,7 +26,7 @@ func RegisterRoutes(e *echo.Echo) {
 	api.POST("/submit/:user_id/:problem_id", handler.HandleSubmission)
 	api.GET("/leaderboard/:contest_id", handler.GetLeaderboardByContestID)
 
-	// Admin routes	
+	// Admin routes
 	admin := e.Group("/admin")
 	admin.Use(handler.AdminJWTMiddleware())
 	//contest routes

@@ -35,12 +35,12 @@ type IsolateJob struct {
 	MetaFile   string
 }
 
-func ProcessSubmission(submission *schema.RabbitMQPayload, ctx context.Context) error {
+func ProcessSubmission(submission *schema.RabbitMQPayload, response *schema.JudgeResponse, ctx context.Context) error {
 
 	job := &IsolateJob{
 		Submission: submission,
 		BoxID:      int(atomic.AddInt64(&boxIDCounter, 1)) % 2147483647,
-		Response:   &schema.JudgeResponse{},
+		Response:   response,
 	}
 
 	return job.Execute(ctx)

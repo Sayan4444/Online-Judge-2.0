@@ -4,14 +4,19 @@ import (
 	"OJ-backend/config"
 	models "OJ-backend/models"
 	"OJ-backend/services/rabbitmq"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
 	"github.com/golang-jwt/jwt/v5"
 	uuid "github.com/google/uuid"
 	echojwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
-	"net/http"
-	"time"
 )
 
 type Claims struct {
@@ -634,6 +639,13 @@ func HandleSubmission(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
 	}
 
+	// Generate callback URL for this submission
+	baseURL := config.GetEnv("BASE_URL")
+	if baseURL == "" {
+		baseURL = "http://localhost:1323" // Default fallback
+	}
+	callbackURL := fmt.Sprintf("%s/callback/submission", baseURL)
+
 	submission := models.Submission{
 		ID:             uuid.New(),
 		ProblemID:      problem.ID,
@@ -651,7 +663,7 @@ func HandleSubmission(c echo.Context) error {
 		CompileOutput:  "",                  // Will be filled after compilation
 		ExitSignal:     0,                   // Will be filled after execution
 		ExitCode:       0,                   // Will be filled after execution
-		CallbackURL:    "",                  // Optional, can be set if needed
+		CallbackURL:    callbackURL,         // Set callback URL for worker to call back
 	}
 	if err := db.Create(&submission).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "could not create submission"})
@@ -694,4 +706,106 @@ func GetLeaderboardByContestID(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, leaderboard)
+}
+
+// HMAC verification utilities
+func generateHMAC(payload []byte, secret string) string {
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write(payload)
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func verifyHMAC(payload []byte, receivedSignature string, secret string) bool {
+	expectedSignature := generateHMAC(payload, secret)
+	return hmac.Equal([]byte(receivedSignature), []byte(expectedSignature))
+}
+
+// extractSignatureFromHeader extracts the HMAC signature from the header
+func extractSignatureFromHeader(header string) (string, error) {
+	// Expected format: "sha256=<signature>"
+	if !strings.HasPrefix(header, "sha256=") {
+		return "", fmt.Errorf("invalid signature format")
+	}
+	return strings.TrimPrefix(header, "sha256="), nil
+}
+
+// Callback endpoint for receiving submission results from workers
+func HandleSubmissionCallback(c echo.Context) error {
+	// Verify HMAC signature
+	signature := c.Request().Header.Get("X-OJ-Signature")
+	if signature == "" {
+		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "missing signature"})
+	}
+
+	// Read the raw body for HMAC verification
+	body := make([]byte, 0)
+	if c.Request().Body != nil {
+		bodyBytes := make([]byte, c.Request().ContentLength)
+		c.Request().Body.Read(bodyBytes)
+		body = bodyBytes
+	}
+
+	// Extract signature from header
+	sig, err := extractSignatureFromHeader(signature)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid signature format"})
+	}
+
+	// Verify HMAC
+	webhookSecret := config.GetEnv("WEBHOOK_SECRET")
+	if webhookSecret == "" {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "webhook secret not configured"})
+	}
+
+	if !verifyHMAC(body, sig, webhookSecret) {
+		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "invalid signature"})
+	}
+
+	// Parse the callback payload
+	var callbackPayload struct {
+		SubmissionID  string `json:"submission_id"`
+		Result        string `json:"result"`
+		Score         int    `json:"score"`
+		StdOutput     string `json:"std_output"`
+		StdError      string `json:"std_error"`
+		CompileOutput string `json:"compile_output"`
+		ExitSignal    int    `json:"exit_signal"`
+		ExitCode      int    `json:"exit_code"`
+		Time          string `json:"time"`
+		Memory        string `json:"memory"`
+		Message       string `json:"message"`
+	}
+
+	if err := c.Bind(&callbackPayload); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid payload"})
+	}
+
+	// Update submission in database
+	db := config.DB
+	var submission models.Submission
+
+	if err := db.First(&submission, "id = ?", callbackPayload.SubmissionID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.JSON(http.StatusNotFound, echo.Map{"error": "submission not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
+	}
+
+	// Update submission with results
+	submission.Result = callbackPayload.Result
+	submission.Score = callbackPayload.Score
+	submission.StdOutput = callbackPayload.StdOutput
+	submission.StdError = callbackPayload.StdError
+	submission.CompileOutput = callbackPayload.CompileOutput
+	submission.ExitSignal = callbackPayload.ExitSignal
+	submission.ExitCode = callbackPayload.ExitCode
+
+	if err := db.Save(&submission).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to update submission"})
+	}
+
+	return c.JSON(http.StatusOK, echo.Map{
+		"message":       "submission updated successfully",
+		"submission_id": submission.ID,
+	})
 }
