@@ -81,8 +81,10 @@ type Language struct {
 	CompileCommand string `json:"compile_command" gorm:"not null"` // Command to compile the code
 	RunCommand     string `json:"run_command" gorm:"not null"`     // Command to run
 	TimeLimit      int    `json:"time_limit" gorm:"not null"`      // Time limit for the submission in milliseconds
-	MemoryLimit    int    `json:"memory_limit" gorm:"not null"`    // Memory limit for the submission in MB
-	WallLimit      int    `json:"wall_limit" gorm:"not null"`      // Wall time limit for the submission in seconds
+	MemoryLimit    int    `json:"memory_limit"`    // Memory limit for the submission in MB
+	WallLimit      int    `json:"wall_limit"`      // Wall time limit for the submission in seconds
+	StackLimit     int    `json:"stack_limit"`     // Stack limit for the submission in MB
+	OutputLimit    int    `json:"output_limit"`    // Output limit for the submission in MB
 	SrcFile        string `json:"src_file" gorm:"not null"`        // Source file name for the submission
 }
 
@@ -91,4 +93,25 @@ type LeaderboardEntry struct {
 	Username        string    `json:"username"`
 	TotalScore      int       `json:"total_score"`
 	FirstSubmission time.Time `json:"first_submission"`
+}
+
+type RabbitMQPayload struct {
+	SubmissionID   uuid.UUID `json:"submission_id"`
+	ProblemID      uuid.UUID `json:"problem_id"`
+	UserID         uuid.UUID `json:"user_id"`
+	Language       string    `json:"language"`
+	SourceCode     string    `json:"source_code"`
+	SourceFileName string    `json:"source_file_name"`
+	Status         string    `json:"status"`
+	Score          int       `json:"score"`
+	TimeLimit      int       `json:"time_limit"`
+	WallTimeLimit  int       `json:"wall_time_limit"`
+	MemoryLimit    int       `json:"memory_limit"`
+	StackLimit     int       `json:"stack_limit"`
+	OutputLimit    int       `json:"output_limit"`
+	StdIn          string    `json:"stdin"`
+	StdOut         string    `json:"stdout"`
+	CompileCmd     string    `json:"compile_cmd"`
+	RunCmd         string    `json:"run_cmd"`
+	CallBackURL    string    `json:"callback_url"`
 }

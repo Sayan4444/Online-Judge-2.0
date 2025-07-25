@@ -6,7 +6,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-const configPath = "../.env"
+const configPath = "./.env"
 
 func LoadEnv() {
 	err := godotenv.Load(configPath)

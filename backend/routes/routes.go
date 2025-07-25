@@ -27,7 +27,7 @@ func RegisterRoutes(e *echo.Echo) {
 	api.POST("/submit/:user_id/:problem_id", handler.HandleSubmission)
 	api.GET("/leaderboard/:contest_id", handler.GetLeaderboardByContestID)
 	// SSE endpoint for real-time submission updates
-	api.GET("/submission/:user_id/:submission_id/events", sse.HandleSSEConnection)
+	e.GET("/submission/:user_id/:submission_id/events", sse.HandleSSEConnection)
 
 	// Admin routes
 	admin := e.Group("/admin")

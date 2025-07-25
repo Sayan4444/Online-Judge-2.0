@@ -31,7 +31,7 @@ func NewRabbitMQ(queueName string) *RabbitMQ {
 	// Declare a queue
 	_, err = ch.QueueDeclare(
 		queueName, // name
-		false,     // durable
+		true,     // durable
 		false,     // delete when unused
 		false,     // exclusive
 		false,     // no-wait
@@ -48,11 +48,11 @@ func NewRabbitMQ(queueName string) *RabbitMQ {
 	}
 }
 
-func SendSubmissionToQueue(submission model.Submission) error {
+func SendSubmissionToQueue(rabbitmqPayload model.RabbitMQPayload) error {
 	if RabbitMQClient == nil {
 		RabbitMQClient = NewRabbitMQ("submissions")
 	}
-	body, err := json.Marshal(submission)
+	body, err := json.Marshal(rabbitmqPayload)
 	if err != nil {
 		return err
 	}
@@ -66,6 +66,7 @@ func SendSubmissionToQueue(submission model.Submission) error {
 			ContentType: "application/json",
 			Body:        body,
 			Timestamp:   time.Now(),
+			DeliveryMode: amqp.Persistent,
 		},
 	)
 

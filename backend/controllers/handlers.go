@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"io"
+	"bytes"
 
 	"github.com/golang-jwt/jwt/v5"
 	uuid "github.com/google/uuid"
@@ -669,8 +671,31 @@ func HandleSubmission(c echo.Context) error {
 	if err := db.Create(&submission).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "could not create submission"})
 	}
+
+	// Prepare RabbitMQ payload
+	rabbitmqPayload := models.RabbitMQPayload{
+		SubmissionID:   submission.ID,
+		ProblemID:      submission.ProblemID,
+		UserID:         submission.UserID,
+		Language:       submission.Language,
+		SourceCode:     submission.SourceCode,
+		SourceFileName: language.SrcFile,
+		Status:         submission.Result,
+		Score:          submission.Score,
+		TimeLimit:      language.TimeLimit,
+		WallTimeLimit:  language.WallLimit,
+		MemoryLimit:    language.MemoryLimit,
+		StackLimit:     language.StackLimit,
+		OutputLimit:    language.OutputLimit,
+		StdIn:         submission.StdInput,
+		StdOut:        submission.StdOutput,
+		CompileCmd:    language.CompileCommand,
+		RunCmd:        language.RunCommand,
+		CallBackURL:   callbackURL,
+	}
+
 	// Send submission to RabbitMQ for processing
-	if err := rabbitmq.SendSubmissionToQueue(submission); err != nil {
+	if err := rabbitmq.SendSubmissionToQueue(rabbitmqPayload); err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to send submission to queue"})
 	}
 	return c.JSON(http.StatusCreated, submission)
@@ -724,9 +749,10 @@ func verifyHMAC(payload []byte, receivedSignature string, secret string) bool {
 // extractSignatureFromHeader extracts the HMAC signature from the header
 func extractSignatureFromHeader(header string) (string, error) {
 	// Expected format: "sha256=<signature>"
-	if !strings.HasPrefix(header, "sha256=") {
-		return "", fmt.Errorf("invalid signature format")
-	}
+	fmt.Printf("Extracting signature from header: %s\n", header)
+	// if !strings.HasPrefix(header, "sha256=") {
+	// 	return "", fmt.Errorf("invalid signature format")
+	// }
 	return strings.TrimPrefix(header, "sha256="), nil
 }
 
@@ -741,9 +767,14 @@ func HandleSubmissionCallback(c echo.Context) error {
 	// Read the raw body for HMAC verification
 	body := make([]byte, 0)
 	if c.Request().Body != nil {
-		bodyBytes := make([]byte, c.Request().ContentLength)
-		c.Request().Body.Read(bodyBytes)
-		body = bodyBytes
+		bodyBytes, err := io.ReadAll(c.Request().Body)
+if err != nil {
+	return c.JSON(http.StatusBadRequest, echo.Map{"error": "failed to read request body"})
+}
+body = bodyBytes
+
+// Reset body for echo to bind again
+c.Request().Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 	}
 
 	// Extract signature from header
@@ -778,6 +809,7 @@ func HandleSubmissionCallback(c echo.Context) error {
 	}
 
 	if err := c.Bind(&callbackPayload); err != nil {
+		fmt.Printf("Failed to bind callback payload: %v\n", err)
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid payload"})
 	}
 
