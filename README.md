@@ -1,7 +1,13 @@
+<img width="100" height="100" alt="oj" src="https://github.com/user-attachments/assets/a8469879-1fbc-4484-a0a1-aca1b98e1126" />
+
 # Online-Judge-2.0
 
-A full-stack **Online Judge (OJ)** platform where users can participate in contests, solve problems, and submit code securely inside a sandboxed environment.
+A full-stack **Online Judge (OJ)** platform where users can participate in contests and submit code securely inside a sandboxed environment.
 
+---
+## OJ Architechture 
+
+![OJ_ARCH](https://github.com/user-attachments/assets/5e1e7bdf-fcaf-49ac-970a-923218b058b5)
 ---
 
 ## Tech Stack
