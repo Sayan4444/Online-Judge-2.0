@@ -16,11 +16,11 @@ A full-stack **Online Judge (OJ)** platform where users can participate in conte
 
 ## Features
 
-- ✅ User registration and authentication using JWT
-- ✅ Contest and problem management
-- ✅ Secure code execution via isolated worker pool
-- ✅ RESTful API design with Echo
-- ✅ PostgreSQL (optional) support via GORM ORM
+- User registration and authentication using JWT
+- Contest and problem management
+- Secure code execution via isolated worker pool
+- RESTful API design with Echo
+- PostgreSQL (optional) support via GORM ORM
 
 ---
 
@@ -34,6 +34,66 @@ A full-stack **Online Judge (OJ)** platform where users can participate in conte
 ---
 
 ## Development guide
+
+Make sure all dependencies are installed.
+
+Clone the repo:
+
+```bash
+git clone https://github.com/lugnitdgp/Online-Judge-2.0.git
+```
+
+### Frontend
+
+- Use node v20+ (you can use [nvm](https://github.com/nvm-sh/nvm) to change node version)
+
+```bash
+nvm use 20
+```
+
+- Set environment variables (refer to `.env.example`)
+
+- Get inside frontend directory, install dependencies and run frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### Backend
+
+- Use Go v1.23+
+
+- Set environment variables (refer to `.env.example`)
+
+- Get inside backend directory, run backend
+
+```bash
+cd backend
+go mod tidy
+go run server.go
+```
+
+### Worker
+
+- Install Isolate locally (Linux machine)
+
+- Remove `sudo` temporarily by adding this line to your `visudo`
+
+```bash
+<username> ALL=(ALL) NOPASSWD: ALL
+```
+
+- Get inside worker directory and run worker
+
+```bash
+cd worker
+go mod tidy
+go run worker.go
+```
+
+## Contribution Guide
 
 Always use atomic commit messages (monorepo best-practice) create PR against the main branch.
 

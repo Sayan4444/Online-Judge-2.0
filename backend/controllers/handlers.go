@@ -649,6 +649,16 @@ func HandleSubmission(c echo.Context) error {
 	}
 	callbackURL := fmt.Sprintf("%s/callback/submission", baseURL)
 
+	// Concatenate all test case inputs and outputs separated by newline
+	var allInputs []string
+	var allOutputs []string
+	for _, tc := range testCases {
+		allInputs = append(allInputs, tc.Input)
+		allOutputs = append(allOutputs, tc.Output)
+	}
+	combinedInput := strings.Join(allInputs, "\n")
+	combinedOutput := strings.Join(allOutputs, "\n")
+
 	submission := models.Submission{
 		ID:             uuid.New(),
 		ProblemID:      problem.ID,
@@ -659,8 +669,8 @@ func HandleSubmission(c echo.Context) error {
 		SourceCode:     body.SourceCode,
 		Language:       body.Language,
 		Score:          0,                   // Initial score
-		StdInput:       testCases[0].Input,  // Assuming the first test case input is used for submission
-		ExpectedOutput: testCases[0].Output, // Assuming the first test case output
+		StdInput:       combinedInput,       // All test case inputs separated by newline
+		ExpectedOutput: combinedOutput,      // All test case outputs separated by newline
 		StdOutput:      "",                  // Will be filled after execution
 		StdError:       "",                  // Will be filled after execution
 		CompileOutput:  "",                  // Will be filled after compilation
@@ -688,7 +698,7 @@ func HandleSubmission(c echo.Context) error {
 		StackLimit:     language.StackLimit,
 		OutputLimit:    language.OutputLimit,
 		StdIn:         submission.StdInput,
-		StdOut:        submission.StdOutput,
+		StdOut:        submission.ExpectedOutput,
 		CompileCmd:    language.CompileCommand,
 		RunCmd:        language.RunCommand,
 		CallBackURL:   callbackURL,

@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "../ui/button";
-
+import ace from "ace-builds/src-noconflict/ace";
 import "ace-builds/src-noconflict/mode-java";
 import "ace-builds/src-noconflict/mode-c_cpp";
 import "ace-builds/src-noconflict/mode-python";
@@ -21,6 +21,7 @@ import {
   SubmissionUpdate,
 } from "@/fetch/submission";
 import { toast } from "sonner";
+ace.config.set("basePath", "/ace");
 
 interface SubmissionResult {
   result: string;
@@ -189,11 +190,7 @@ const CodeEditor = ({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button
-          onClick={handleSubmit}
-          disabled={isSubmitting || code === ""}
-          className="bg-blue-600 hover:bg-blue-700"
-        >
+        <Button onClick={handleSubmit} disabled={isSubmitting || code === ""}>
           {isSubmitting ? "Submitting..." : "Submit Code"}
         </Button>
       </div>
@@ -207,6 +204,7 @@ const CodeEditor = ({
         showPrintMargin={true}
         showGutter={true}
         highlightActiveLine={true}
+        width="100%"
         value={code}
         onChange={handleCodeChange}
         setOptions={{
@@ -218,7 +216,6 @@ const CodeEditor = ({
         }}
       />
 
-      {/* Submission Result Display */}
       {submissionResult && (
         <div className="mt-4 p-4 border rounded-lg bg-gray-50">
           <div className="flex items-center gap-2 mb-2">
