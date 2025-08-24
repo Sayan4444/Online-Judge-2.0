@@ -1,4 +1,4 @@
-package utils
+package schema
 
 import (
 	"bytes"
@@ -8,21 +8,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"github.com/google/uuid"
 )
 
-// CallbackPayload represents the data sent back to the server
-type CallbackPayload struct {
-	SubmissionID  string `json:"submission_id"`
-	Result        string `json:"result"`
-	Score         int    `json:"score"`
-	StdOutput     string `json:"std_output"`
-	StdError      string `json:"std_error"`
-	CompileOutput string `json:"compile_output"`
-	ExitSignal    int    `json:"exit_signal"`
-	ExitCode      int    `json:"exit_code"`
-	Time          string `json:"time"`
-	Memory        string `json:"memory"`
-	Message       string `json:"message"`
+type PublishPayload struct {
+	SubmissionID  uuid.UUID     `json:"submission_id"`
+	Score         int           `json:"score"`
+	JudgeResponse JudgeResponse `json:"judge_response"`
 }
 
 // generateHMAC generates HMAC-SHA256 signature for the payload
@@ -32,8 +25,8 @@ func generateHMAC(payload []byte, secret string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// SendCallback sends HMAC-authenticated callback to the server
-func SendCallback(callbackURL string, payload CallbackPayload, webhookSecret string) error {
+// PublishMessage sends HMAC-authenticated callback to the server
+func PublishMessage(callbackURL string, payload PublishPayload, webhookSecret string) error {
 	// Marshal payload to JSON
 	jsonPayload, err := json.Marshal(payload)
 	if err != nil {

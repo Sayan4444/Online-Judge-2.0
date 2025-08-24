@@ -1,6 +1,8 @@
 package isolatejob
 
 import (
+	"OJ-Worker/config"
+	model "OJ-Worker/models"
 	"OJ-Worker/schema"
 	"context"
 	"fmt"
@@ -24,6 +26,8 @@ var boxIDCounter int64
 type IsolateJob struct {
 	Submission *schema.RabbitMQPayload
 	Response   *schema.JudgeResponse
+	Language   *model.Language
+	TestCases  []model.TestCase
 	BoxID      int
 	WorkDir    string
 	BoxDir     string
@@ -36,45 +40,56 @@ type IsolateJob struct {
 }
 
 func ProcessSubmission(submission *schema.RabbitMQPayload, response *schema.JudgeResponse, ctx context.Context) error {
+	db := config.DB
+	var language model.Language
+	if err := db.Where("name = ?", submission.Language).First(&language).Error; err != nil {
+		return fmt.Errorf("failed to find language: %v", err)
+	}
+
+	var testCases []model.TestCase
+	if err := db.Where("problem_id = ?", submission.ProblemID).Find(&testCases).Error; err != nil {
+		return err
+	}
 
 	job := &IsolateJob{
 		Submission: submission,
 		BoxID:      int(atomic.AddInt64(&boxIDCounter, 1)) % 2147483647,
 		Response:   response,
+		Language:   &language,
+		TestCases:  testCases,
 	}
 
 	return job.Execute(ctx)
 }
 
 func (j *IsolateJob) Execute(ctx context.Context) error {
+	defer j.CleanUp(ctx)
 	if err := j.InitializeIsolate(ctx); err != nil {
 		j.Response.Result = schema.ResultSystemError
-		j.CleanUp(ctx)
 		return fmt.Errorf("failed to initialize isolate: %v", err)
 	}
+	fmt.Println("Isolate initialized successfully")
 	success, err := j.Compile(ctx)
 	if err != nil {
 		j.Response.Result = schema.ResultSystemError
-		j.CleanUp(ctx)
 		return fmt.Errorf("failed to compile: %v", err)
 	}
 	if !success {
-		j.CleanUp(ctx)
 		return nil
 	}
+	fmt.Println("Code Compiled successfully")
 
 	success, err = j.Run(ctx)
 	if err != nil {
 		j.Response.Result = schema.ResultSystemError
-		j.CleanUp(ctx)
 		return fmt.Errorf("failed to run: %v", err)
 	}
 	if !success {
-		j.CleanUp(ctx)
 		return nil
 	}
 
 	j.CleanUp(ctx)
+	fmt.Println("Code Ran successfully")
 	return nil
 
 }
@@ -95,7 +110,7 @@ func (j *IsolateJob) InitializeIsolate(ctx context.Context) error {
 	j.BoxDir = filepath.Join(j.WorkDir, "box")
 	j.TmpDir = filepath.Join(j.WorkDir, "tmp")
 
-	j.SourceFile = filepath.Join(j.BoxDir, j.Submission.SourceFileName)
+	j.SourceFile = filepath.Join(j.BoxDir, j.Language.SrcFile)
 	j.InputFile = filepath.Join(j.WorkDir, StdinFileName)
 	j.OutputFile = filepath.Join(j.WorkDir, StdoutFileName)
 	j.ErrorFile = filepath.Join(j.WorkDir, StderrFileName)
@@ -112,15 +127,10 @@ func (j *IsolateJob) InitializeIsolate(ctx context.Context) error {
 		return fmt.Errorf("failed to write source code to file %s: %v", j.SourceFile, err)
 	}
 
-	if err := os.WriteFile(j.InputFile, []byte(j.Submission.StdIn), 0644); err != nil {
-		return fmt.Errorf("failed to write stdin to file %s: %v", j.InputFile, err)
-	}
-
 	return nil
 }
 
 func (j *IsolateJob) InitializeFiles(filename string, ctx context.Context) error {
-
 	user := os.Getenv("USER")
 
 	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", fmt.Sprintf("sudo touch %s && sudo chown %s: %s", filename, user, filename))
@@ -133,14 +143,11 @@ func (j *IsolateJob) InitializeFiles(filename string, ctx context.Context) error
 }
 
 func (j *IsolateJob) Compile(ctx context.Context) (bool, error) {
-	if j.Submission.CompileCmd == "" {
-		return true, nil
-	}
 	compileScript := filepath.Join(j.BoxDir, "compile.sh")
 	compileOutput := filepath.Join(j.WorkDir, "compile_output.txt")
 	j.InitializeFiles(compileOutput, ctx)
 
-	if err := os.WriteFile(compileScript, []byte(j.Submission.CompileCmd), 0755); err != nil {
+	if err := os.WriteFile(compileScript, []byte(j.Language.CompileCommand), 0755); err != nil {
 		return false, fmt.Errorf("failed to write compile script to file %s: %v", compileScript, err)
 	}
 
@@ -163,7 +170,12 @@ func (j *IsolateJob) Compile(ctx context.Context) (bool, error) {
 	--run \
 	-- /bin/bash %s > %s`
 
-	actualCompileCmd := fmt.Sprintf(cmdRun, j.BoxID, j.MetaFile, j.Submission.TimeLimit, j.Submission.WallTimeLimit, j.Submission.MemoryLimit, j.Submission.StackLimit, j.Submission.OutputLimit, filepath.Base(compileScript), compileOutput)
+	compilationTimeLimit := 10
+	compilationWallTimeLimit := 10
+	compilationMemoryLimit := 10000000
+	compilationStackLimit := 10000000
+
+	actualCompileCmd := fmt.Sprintf(cmdRun, j.BoxID, j.MetaFile, compilationTimeLimit, compilationWallTimeLimit, compilationMemoryLimit, compilationStackLimit, j.Language.OutputLimit, filepath.Base(compileScript), compileOutput)
 
 	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", actualCompileCmd)
 	err := cmd.Run()
@@ -173,9 +185,6 @@ func (j *IsolateJob) Compile(ctx context.Context) (bool, error) {
 	}
 
 	metadata, _ := j.getMetadata()
-
-	fmt.Println("----------------Compile Metadata------------")
-	fmt.Println(metadata)
 
 	filesToRemove := []string{compileScript, compileOutput}
 
@@ -201,93 +210,104 @@ func (j *IsolateJob) Compile(ctx context.Context) (bool, error) {
 	} else if err != nil {
 		return false, err
 	}
-
 	return true, nil
 }
 
 func (j *IsolateJob) Run(ctx context.Context) (bool, error) {
 	runScript := filepath.Join(j.BoxDir, "run.sh")
 
-	if err := os.WriteFile(runScript, []byte(j.Submission.RunCmd), 0755); err != nil {
+	if err := os.WriteFile(runScript, []byte(j.Language.RunCommand), 0755); err != nil {
 		return false, fmt.Errorf("failed to write run script to file %s: %v", runScript, err)
 	}
 
 	cmdRun := `isolate \
-	-s \
-	-b %d \
-	-M %s \
-	--stderr-to-stdout \
-	-t %d \
-	-w %d \
-	-x 0 \
-	-m %d \
-	-k %d \
-	-p4 \
-	-f %d \
-	-E "HOME=/tmp" \
-	-E "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
-	-d "/etc:noexec" \
-	--run \
-	-- /bin/bash %s < %s > %s 2> %s`
+		-s \
+		-b %d \
+		-M %s \
+		--stderr-to-stdout \
+		-t %d \
+		-w %d \
+		-x 0 \
+		-m %d \
+		-k %d \
+		-p4 \
+		-f %d \
+		-E "HOME=/tmp" \
+		-E "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+		-d "/etc:noexec" \
+		--run \
+		-- /bin/bash %s < %s > %s 2> %s`
 
-	actualRunCmd := fmt.Sprintf(cmdRun, j.BoxID, j.MetaFile, j.Submission.TimeLimit, j.Submission.WallTimeLimit, j.Submission.MemoryLimit, j.Submission.StackLimit, j.Submission.OutputLimit, filepath.Base(runScript), j.InputFile, j.OutputFile, j.ErrorFile)
+	actualRunCmd := fmt.Sprintf(cmdRun, j.BoxID, j.MetaFile, j.Language.TimeLimit, j.Language.WallLimit, j.Language.MemoryLimit, j.Language.StackLimit, j.Language.OutputLimit, filepath.Base(runScript), j.InputFile, j.OutputFile, j.ErrorFile)
+	
+	for _, testCase := range j.TestCases {
+		stdin := testCase.Input
+		stdoutExpected := testCase.Output
 
-	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", actualRunCmd)
-	err := cmd.Run()
-
-	stdInText, readErr := os.ReadFile(j.InputFile)
-	if readErr == nil && len(stdInText) > 0 {
-		j.Response.Stdin = string(stdInText)
-	}
-
-	runOutputText, readErr := os.ReadFile(j.OutputFile)
-	if readErr == nil && len(runOutputText) > 0 {
-		j.Response.Stdout = string(runOutputText)
-	}
-
-	stderrOutputText, readErr := os.ReadFile(j.ErrorFile)
-	if readErr == nil && len(stderrOutputText) > 0 {
-		j.Response.Stderr = string(stderrOutputText)
-	}
-
-	metadata, _ := j.getMetadata()
-	j.Response.ExitCode = metadata["exit-code"]
-	j.Response.ExitSignal = metadata["exit-signal"]
-	j.Response.Time = metadata["time"]
-	j.Response.Memory = metadata["max-rss"]
-	fmt.Println("----------------Run Metadata------------")
-	fmt.Println(metadata)
-
-	if err := exec.CommandContext(ctx, "sudo", "rm", "-rf", runScript).Run(); err != nil {
-		return false, fmt.Errorf("failed to remove file %s: %v", runScript, err)
-	}
-
-	j.resetMetadata(ctx)
-
-	if _, ok := err.(*exec.ExitError); ok {
-		if status, ok := metadata["status"]; ok {
-			switch status {
-			case "TO":
-				j.Response.Result = schema.ResultTimeLimitExceeded
-				j.Response.Message = "Time Limit Exceeded"
-			case "RE":
-				j.Response.Result = schema.ResultRuntimeError
-				j.Response.Message = "Runtime Error"
-			}
-			return false, nil
+		if err := os.WriteFile(j.InputFile, []byte(stdin), 0755); err != nil {
+			return false, fmt.Errorf("failed to write stdin to file %s: %v", j.InputFile, err)
 		}
 
-	} else if err != nil {
-		return false, err
-	}
+		// Create run script
+		cmd := exec.CommandContext(ctx, "/bin/bash", "-c", actualRunCmd)
+		err := cmd.Run()
 
-	if j.Response.Stdout == j.Submission.StdOut && j.Response.Stderr == "" {
-		j.Response.Result = schema.ResultAccepted
-	} else {
+		var stdout string
+		runOutputText, readErr := os.ReadFile(j.OutputFile)
+		if readErr == nil && len(runOutputText) > 0 {
+			stdout = string(runOutputText)
+		}
+
+		stderrOutputText, readErr := os.ReadFile(j.ErrorFile)
+		if readErr == nil && len(stderrOutputText) > 0 {
+			j.Response.Stderr = string(stderrOutputText)
+		}
+
+		metadata, _ := j.getMetadata()
+		j.Response.ExitCode = metadata["exit-code"]
+		j.Response.ExitSignal = metadata["exit-signal"]
+		j.Response.Time = metadata["time"]
+		j.Response.Memory = metadata["max-rss"]
+
+		j.resetMetadata(ctx)
+
+		if _, ok := err.(*exec.ExitError); ok {
+			if status, ok := metadata["status"]; ok {
+				switch status {
+				case "TO":
+					j.Response.Result = schema.ResultTimeLimitExceeded
+					j.Response.Message = "Time Limit Exceeded"
+				case "RE":
+					j.Response.Result = schema.ResultRuntimeError
+					j.Response.Message = "Runtime Error"
+				}
+				return false, nil
+			}
+
+		} else if err != nil {
+			return false, err
+		}
+
+		if stdout != stdoutExpected && j.Response.Stderr == "" {
+			j.Response.Result = schema.ResultWrongAnswer
+			j.Response.WrongAnswers = append(j.Response.WrongAnswers, schema.WrongAnswer{
+				TestCaseID: testCase.ID.String(),
+				Stdout:     stdout,
+			})
+			break
+		}
+	}
+	if err := exec.CommandContext(ctx, "sudo", "rm", "-rf", runScript).Run(); err != nil {
+			return false, fmt.Errorf("failed to remove file %s: %v", runScript, err)
+		}
+
+	if len(j.Response.WrongAnswers) > 0 {
 		j.Response.Result = schema.ResultWrongAnswer
+		return false, nil
+	} else {
+		j.Response.Result = schema.ResultAccepted
+		return true, nil
 	}
-
-	return true, nil
 }
 
 func (j *IsolateJob) getMetadata() (map[string]string, error) {

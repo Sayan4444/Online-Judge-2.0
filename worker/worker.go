@@ -1,9 +1,9 @@
 package main
 
 import (
-	isolatejob "OJ-Worker/isolateJob"
+	"OJ-Worker/config"
+	"OJ-Worker/isolateJob"
 	"OJ-Worker/schema"
-	"OJ-Worker/utils"
 	"context"
 	"encoding/json"
 	"log"
@@ -51,54 +51,41 @@ func processMessage(ctx context.Context, d amqp091.Delivery, workerTag string) {
 	}
 
 	// Prepare callback payload
-	callbackPayload := utils.CallbackPayload{
-		SubmissionID:  submission.SubmissionID.String(),
-		Result:        response.Result,
+	publishPayload := schema.PublishPayload{
+		SubmissionID:  submission.SubmissionID,
 		Score:         score,
-		StdOutput:     response.Stdout,
-		StdError:      response.Stderr,
-		CompileOutput: response.CompileOutput,
-		ExitSignal:    parseIntFromString(response.ExitSignal),
-		ExitCode:      parseIntFromString(response.ExitCode),
-		Time:          response.Time,
-		Memory:        response.Memory,
-		Message:       response.Message,
+		JudgeResponse: *response,
 	}
 
-	// Send callback if callback URL is provided
-	if submission.CallBackURL != "" {
-		webhookSecret := utils.GetEnv("WEBHOOK_SECRET")
-		if webhookSecret == "" {
-			log.Printf("%s: Warning: WEBHOOK_SECRET not set, using default", workerTag)
-			webhookSecret = "default-secret" // Fallback - should match backend
-		}
+	// Will use pub sub	
 
-		if err := utils.SendCallback(submission.CallBackURL, callbackPayload, webhookSecret); err != nil {
-			log.Printf("%s: Failed to send callback for submission %s: %v", workerTag, submission.SubmissionID, err)
-		} else {
-			log.Printf("%s: Successfully sent callback for submission %s", workerTag, submission.SubmissionID)
-		}
-	} else {
-		log.Printf("%s: No callback URL provided for submission %s", workerTag, submission.SubmissionID)
-	}
-
-	log.Printf("%s: Completed processing submission %s with result: %s", workerTag, submission.SubmissionID, response.Result)
-}
-
-// parseIntFromString safely parses integer from string, returns 0 if parsing fails
-func parseIntFromString(s string) int {
-	if i, err := strconv.Atoi(s); err == nil {
-		return i
-	}
-	return 0
+	// Log all fields of publishPayload.JudgeResponse
+	log.Printf("%s: JudgeResponse fields for submission %s:", workerTag, submission.SubmissionID)
+	log.Printf("  Stderr: %s", publishPayload.JudgeResponse.Stderr)
+	log.Printf("  Time: %s", publishPayload.JudgeResponse.Time)
+	log.Printf("  Memory: %s", publishPayload.JudgeResponse.Memory)
+	log.Printf("  ExitSignal: %s", publishPayload.JudgeResponse.ExitSignal)
+	log.Printf("  ExitCode: %s", publishPayload.JudgeResponse.ExitCode)
+	log.Printf("  Message: %s", publishPayload.JudgeResponse.Message)
+	log.Printf("  Result: %s", publishPayload.JudgeResponse.Result)
+	log.Printf("  CompileOutput: %s", publishPayload.JudgeResponse.CompileOutput)
+	log.Printf("  WrongAnswers: %+v", publishPayload.JudgeResponse.WrongAnswers)
 }
 
 func main() {
 	// Load environment variables
-	utils.LoadEnv()
+	config.LoadEnv()
+
+	// Connect to the database
+	db, err := config.ConnectDB()
+	if err != nil {
+		log.Printf("Failed to connect to the database: %v", err)
+	} else {
+		log.Printf("Successfully connected to the database: %s", db.Name())
+	}
 
 	// Configure the number of concurrent workers from environment variables.
-	numWorkers, err := strconv.Atoi(utils.GetEnv("NUM_WORKERS"))
+	numWorkers, err := strconv.Atoi(config.GetEnv("NUM_WORKERS"))
 	if err != nil {
 		numWorkers = 5
 	}
@@ -106,7 +93,7 @@ func main() {
 	log.Printf("Starting %d workers", numWorkers)
 
 	// Configure RabbitMQ connection from environment variables.
-	amqpURI := utils.GetEnv("RABBITMQ_URL")
+	amqpURI := config.GetEnv("RABBITMQ_URL")
 	if amqpURI == "" {
 		amqpURI = "amqp://guest:guest@localhost:5672" // Default fallback
 	}

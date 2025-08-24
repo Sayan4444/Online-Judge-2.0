@@ -1,3 +1,4 @@
 OJ-backend
 .env
 go.sum
+tmp
