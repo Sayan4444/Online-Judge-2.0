@@ -14,8 +14,7 @@ func RegisterRoutes(e *echo.Echo) {
 	e.GET("/contests", handler.GetAllContests)
 
 	// Callback route for workers (HMAC authenticated)
-	e.POST("/callback/submission", handler.HandleSubmissionCallback)
-
+	// TODO: handle how to mangage pub-sub data
 	// Protected routes
 	api := e.Group("/api")
 	api.Use(handler.JWTMiddleware())

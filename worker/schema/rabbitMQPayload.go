@@ -8,5 +8,4 @@ type RabbitMQPayload struct {
 	UserID         uuid.UUID `json:"user_id"`
 	Language       string    `json:"language"`
 	SourceCode     string    `json:"source_code"`
-	SourceFileName string    `json:"source_file_name"`
 }

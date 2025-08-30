@@ -5,15 +5,15 @@ import (
 	models "OJ-backend/models"
 	"OJ-backend/services/rabbitmq"
 	"OJ-backend/services/sse"
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
-	"io"
-	"bytes"
 
 	"github.com/golang-jwt/jwt/v5"
 	uuid "github.com/google/uuid"
@@ -608,14 +608,8 @@ func HandleSubmission(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request body"})
 	}
 
-	// Validate user exists
-	var user models.User
-	if err := db.First(&user, "id = ?", userID).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return c.JSON(http.StatusNotFound, echo.Map{"error": "user not found"})
-		}
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
-	}
+	// TODO: send userid using jwt
+
 	// Validate problem exists
 	var problem models.Problem
 	if err := db.First(&problem, "id = ?", problemID).Error; err != nil {
@@ -625,15 +619,7 @@ func HandleSubmission(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
 	}
 
-	var testCases []models.TestCase
-
-	if err := db.Where("problem_id = ?", problem.ID).Find(&testCases).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to retrieve test cases"})
-	}
-	if len(testCases) == 0 {
-		return c.JSON(http.StatusNotFound, echo.Map{"error": "no test cases found for this problem"})
-	}
-
+	// Validate language exists
 	var language models.Language
 	if err := db.First(&language, "name = ?", body.Language).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -642,41 +628,21 @@ func HandleSubmission(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
 	}
 
-	// Generate callback URL for this submission
-	baseURL := config.GetEnv("BASE_URL")
-	if baseURL == "" {
-		baseURL = "http://localhost:1323" // Default fallback
-	}
-	callbackURL := fmt.Sprintf("%s/callback/submission", baseURL)
-
-	// Concatenate all test case inputs and outputs separated by newline
-	var allInputs []string
-	var allOutputs []string
-	for _, tc := range testCases {
-		allInputs = append(allInputs, tc.Input)
-		allOutputs = append(allOutputs, tc.Output)
-	}
-	combinedInput := strings.Join(allInputs, "\n")
-	combinedOutput := strings.Join(allOutputs, "\n")
-
 	submission := models.Submission{
 		ID:             uuid.New(),
 		ProblemID:      problem.ID,
-		UserID:         user.ID,
+		UserID:         uuid.MustParse(userID),
 		ContestID:      problem.ContestID,
 		SubmittedAt:    time.Now(),
 		Result:         "pending", // Initial status
 		SourceCode:     body.SourceCode,
 		Language:       body.Language,
-		Score:          0,                   // Initial score
-		StdInput:       combinedInput,       // All test case inputs separated by newline
-		ExpectedOutput: combinedOutput,      // All test case outputs separated by newline
-		StdOutput:      "",                  // Will be filled after execution
-		StdError:       "",                  // Will be filled after execution
-		CompileOutput:  "",                  // Will be filled after compilation
-		ExitSignal:     0,                   // Will be filled after execution
-		ExitCode:       0,                   // Will be filled after execution
-		CallbackURL:    callbackURL,         // Set callback URL for worker to call back
+		Score:          0,              // Initial score
+		StdOutput:      "",             // Will be filled after execution
+		StdError:       "",             // Will be filled after execution
+		CompileOutput:  "",             // Will be filled after compilation
+		ExitSignal:     0,              // Will be filled after execution
+		ExitCode:       0,              // Will be filled after execution
 	}
 	if err := db.Create(&submission).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "could not create submission"})
@@ -689,26 +655,13 @@ func HandleSubmission(c echo.Context) error {
 		UserID:         submission.UserID,
 		Language:       submission.Language,
 		SourceCode:     submission.SourceCode,
-		SourceFileName: language.SrcFile,
-		Status:         submission.Result,
-		Score:          submission.Score,
-		TimeLimit:      language.TimeLimit,
-		WallTimeLimit:  language.WallLimit,
-		MemoryLimit:    language.MemoryLimit,
-		StackLimit:     language.StackLimit,
-		OutputLimit:    language.OutputLimit,
-		StdIn:         submission.StdInput,
-		StdOut:        submission.ExpectedOutput,
-		CompileCmd:    language.CompileCommand,
-		RunCmd:        language.RunCommand,
-		CallBackURL:   callbackURL,
 	}
 
 	// Send submission to RabbitMQ for processing
 	if err := rabbitmq.SendSubmissionToQueue(rabbitmqPayload); err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to send submission to queue"})
 	}
-	return c.JSON(http.StatusCreated, submission)
+	return c.JSON(http.StatusOK, echo.Map{"message": "submission sent successfully"})
 }
 
 func GetSubmissionsByContestID(c echo.Context) error {
@@ -778,13 +731,13 @@ func HandleSubmissionCallback(c echo.Context) error {
 	body := make([]byte, 0)
 	if c.Request().Body != nil {
 		bodyBytes, err := io.ReadAll(c.Request().Body)
-if err != nil {
-	return c.JSON(http.StatusBadRequest, echo.Map{"error": "failed to read request body"})
-}
-body = bodyBytes
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, echo.Map{"error": "failed to read request body"})
+		}
+		body = bodyBytes
 
-// Reset body for echo to bind again
-c.Request().Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		// Reset body for echo to bind again
+		c.Request().Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 	}
 
 	// Extract signature from header
