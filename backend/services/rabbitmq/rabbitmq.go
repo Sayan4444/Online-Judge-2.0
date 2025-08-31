@@ -1,91 +1,79 @@
 package rabbitmq
 
 import (
-	amqp "github.com/rabbitmq/amqp091-go"
+	"OJ-backend/config"
+	model "OJ-backend/models"
+	"encoding/json"
+	"fmt"
 	"log"
 	"time"
-	"encoding/json"
-	model "OJ-backend/models"
+
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-type RabbitMQ struct {
-	Connection *amqp.Connection
-	Channel    *amqp.Channel
-	QueueName  string
-}
-
-
-var RabbitMQClient *RabbitMQ
-
-func NewRabbitMQ(queueName string) *RabbitMQ {
-	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+func SendSubmissionToQueue(rabbitmqPayload model.RabbitMQPayload, submissionID string) error {
+	// create a channel
+	ch, err := config.CreateRabbitMQChannel()
 	if err != nil {
-		log.Fatalf("Failed to connect to RabbitMQ: %s", err)
+		log.Fatalf("Failed to create submit channel: %s", err)
 	}
-
-	ch, err := conn.Channel()
+	defer ch.Close()
+	// create a submission queue
+	submissionQueue, err := ch.QueueDeclare("submissions", true, false, false, false, nil)
 	if err != nil {
-		log.Fatalf("Failed to open a channel: %s", err)
+		log.Fatalf("Failed to declare submission queue: %s", err)
 	}
-
-	// Declare a queue
-	_, err = ch.QueueDeclare(
-		queueName, // name
-		true,     // durable
-		false,     // delete when unused
-		false,     // exclusive
-		false,     // no-wait
-		nil,       // arguments
-	)
+	// create a temporary queue for results
+	const fiveMinutesInMs = int32(5 * time.Minute / time.Millisecond)
+	args := amqp.Table{
+		"x-expires": fiveMinutesInMs,
+	}
+	tempQueue, err := ch.QueueDeclare(submissionID, true, true, false, false, args)
 	if err != nil {
-		log.Fatalf("Failed to declare a queue: %s", err)
-	}
-
-	return &RabbitMQ{
-		Connection: conn,
-		Channel:    ch,
-		QueueName:  queueName,
-	}
-}
-
-func SendSubmissionToQueue(rabbitmqPayload model.RabbitMQPayload) error {
-	if RabbitMQClient == nil {
-		RabbitMQClient = NewRabbitMQ("submissions")
+		log.Fatalf("Failed to declare temporary results queue: %s", err)
 	}
 	body, err := json.Marshal(rabbitmqPayload)
 	if err != nil {
-		return err
+		log.Fatalf("Failed to marshal rabbitmqPayload: %s", err)
 	}
-
-	err = RabbitMQClient.Channel.Publish(
-		"",              // exchange
-		RabbitMQClient.QueueName, // routing key
-		false,          // mandatory
-		false,          // immediate
+	// push data into that queue
+	err = ch.Publish(
+		"",                                 // exchange
+		submissionQueue.Name, 				// routing key
+		false,                              // mandatory
+		false,                              // immediate
 		amqp.Publishing{
-			ContentType: "application/json",
-			Body:        body,
-			Timestamp:   time.Now(),
-			DeliveryMode: amqp.Persistent,
+			ContentType:   "application/json",
+			Body:          body,
+			Timestamp:     time.Now(),
+			DeliveryMode:  amqp.Persistent,
+			ReplyTo:       tempQueue.Name,
 		},
 	)
-
 	if err != nil {
-		return err
+		log.Fatalf("Failed to publish to temporary results queue: %s", err)
 	}
+	
+	// only for checking results
+	// consumeResult(ch, tempQueue)
 
-	log.Printf("Submission sent to queue: %s", RabbitMQClient.QueueName)
+	log.Printf("Submission sent to queue: %s", submissionQueue.Name)
 	return nil
 }
 
-func CloseRabbitMQ() {
-	if RabbitMQClient != nil {
-		if RabbitMQClient.Channel != nil {
-			RabbitMQClient.Channel.Close()
-		}
-		if RabbitMQClient.Connection != nil {
-			RabbitMQClient.Connection.Close()
-		}
-		log.Println("RabbitMQ connection closed")
+// only for checking results in dev
+func consumeResult(ch *amqp.Channel, tempQueue amqp.Queue) ([]byte, error) {
+	defer ch.Close()
+	msgs, err := ch.Consume(tempQueue.Name, "", false, false, false, false, nil)
+	if err != nil {
+		return nil, err
+	}
+	select {
+	case d := <-msgs:
+		log.Printf(" [x] Got reply: %s", d.Body)
+		d.Ack(false)
+		return d.Body, nil
+	case <-time.After(30 * time.Second): // optional timeout
+		return nil, fmt.Errorf("timeout waiting for response")
 	}
 }

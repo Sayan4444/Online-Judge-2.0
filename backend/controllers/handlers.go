@@ -4,15 +4,8 @@ import (
 	"OJ-backend/config"
 	models "OJ-backend/models"
 	"OJ-backend/services/rabbitmq"
-	"OJ-backend/services/sse"
-	"bytes"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -23,11 +16,9 @@ import (
 )
 
 type Claims struct {
+	UserID   string `json:"user_id"`
 	Username string `json:"username"`
 	Email    string `json:"email"`
-	OauthID  string `json:"oauth_id"`
-	Provider string `json:"provider"`
-	Image    string `json:"image"`
 	jwt.RegisteredClaims
 }
 
@@ -47,12 +38,6 @@ func JWTMiddleware() echo.MiddlewareFunc {
 	})
 }
 
-func GetUserFromContext(c echo.Context) (username, email string) {
-	user := c.Get("user").(*jwt.Token)
-	claims := user.Claims.(*Claims)
-	return claims.Username, claims.Email
-}
-
 func Login(c echo.Context) error {
 	var body struct {
 		Username string `json:"username"`
@@ -69,9 +54,6 @@ func Login(c echo.Context) error {
 	claims := &Claims{
 		Username: body.Username,
 		Email:    body.Email,
-		OauthID:  body.OauthID,
-		Provider: body.Provider,
-		Image:    body.Image,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(72 * time.Hour)),
 		},
@@ -95,6 +77,7 @@ func Login(c echo.Context) error {
 			if err := db.Create(&user).Error; err != nil {
 				return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to create user"})
 			}
+			claims.UserID = user.ID.String()
 		} else {
 			return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
 		}
@@ -106,6 +89,7 @@ func Login(c echo.Context) error {
 				return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to update user"})
 			}
 		}
+		claims.UserID = user.ID.String()
 		claims.Username = user.Username
 		claims.Email = user.Email
 		claims.RegisteredClaims.IssuedAt = jwt.NewNumericDate(time.Now())
@@ -594,8 +578,13 @@ func GetAllSubmissionsByProblemID(c echo.Context) error {
 
 // Handle submission for a problem
 func HandleSubmission(c echo.Context) error {
-	userID := c.Param("user_id")
+	user := c.Get("user").(*jwt.Token)
+    claims := user.Claims.(*Claims)
+    userID := claims.UserID
+
 	problemID := c.Param("problem_id")
+	// print userid and problem id
+	fmt.Printf("UserID: %s, ProblemID: %s\n", userID, problemID)
 	db := config.DB
 	if userID == "" || problemID == "" {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "user_id and problem_id are required"})
@@ -607,8 +596,6 @@ func HandleSubmission(c echo.Context) error {
 	if err := c.Bind(&body); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request body"})
 	}
-
-	// TODO: send userid using jwt
 
 	// Validate problem exists
 	var problem models.Problem
@@ -641,7 +628,6 @@ func HandleSubmission(c echo.Context) error {
 		StdOutput:      "",             // Will be filled after execution
 		StdError:       "",             // Will be filled after execution
 		CompileOutput:  "",             // Will be filled after compilation
-		ExitSignal:     0,              // Will be filled after execution
 		ExitCode:       0,              // Will be filled after execution
 	}
 	if err := db.Create(&submission).Error; err != nil {
@@ -658,10 +644,10 @@ func HandleSubmission(c echo.Context) error {
 	}
 
 	// Send submission to RabbitMQ for processing
-	if err := rabbitmq.SendSubmissionToQueue(rabbitmqPayload); err != nil {
+	if err := rabbitmq.SendSubmissionToQueue(rabbitmqPayload, submission.ID.String()); err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to send submission to queue"})
 	}
-	return c.JSON(http.StatusOK, echo.Map{"message": "submission sent successfully"})
+	return c.JSON(http.StatusOK, echo.Map{"message": "submission sent successfully", "submission_id": submission.ID})
 }
 
 func GetSubmissionsByContestID(c echo.Context) error {
@@ -695,132 +681,4 @@ func GetLeaderboardByContestID(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, leaderboard)
-}
-
-// HMAC verification utilities
-func generateHMAC(payload []byte, secret string) string {
-	h := hmac.New(sha256.New, []byte(secret))
-	h.Write(payload)
-	return hex.EncodeToString(h.Sum(nil))
-}
-
-func verifyHMAC(payload []byte, receivedSignature string, secret string) bool {
-	expectedSignature := generateHMAC(payload, secret)
-	return hmac.Equal([]byte(receivedSignature), []byte(expectedSignature))
-}
-
-// extractSignatureFromHeader extracts the HMAC signature from the header
-func extractSignatureFromHeader(header string) (string, error) {
-	// Expected format: "sha256=<signature>"
-	fmt.Printf("Extracting signature from header: %s\n", header)
-	// if !strings.HasPrefix(header, "sha256=") {
-	// 	return "", fmt.Errorf("invalid signature format")
-	// }
-	return strings.TrimPrefix(header, "sha256="), nil
-}
-
-// Callback endpoint for receiving submission results from workers
-func HandleSubmissionCallback(c echo.Context) error {
-	// Verify HMAC signature
-	signature := c.Request().Header.Get("X-OJ-Signature")
-	if signature == "" {
-		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "missing signature"})
-	}
-
-	// Read the raw body for HMAC verification
-	body := make([]byte, 0)
-	if c.Request().Body != nil {
-		bodyBytes, err := io.ReadAll(c.Request().Body)
-		if err != nil {
-			return c.JSON(http.StatusBadRequest, echo.Map{"error": "failed to read request body"})
-		}
-		body = bodyBytes
-
-		// Reset body for echo to bind again
-		c.Request().Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-	}
-
-	// Extract signature from header
-	sig, err := extractSignatureFromHeader(signature)
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid signature format"})
-	}
-
-	// Verify HMAC
-	webhookSecret := config.GetEnv("WEBHOOK_SECRET")
-	if webhookSecret == "" {
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "webhook secret not configured"})
-	}
-
-	if !verifyHMAC(body, sig, webhookSecret) {
-		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "invalid signature"})
-	}
-
-	// Parse the callback payload
-	var callbackPayload struct {
-		SubmissionID  string `json:"submission_id"`
-		Result        string `json:"result"`
-		Score         int    `json:"score"`
-		StdOutput     string `json:"std_output"`
-		StdError      string `json:"std_error"`
-		CompileOutput string `json:"compile_output"`
-		ExitSignal    int    `json:"exit_signal"`
-		ExitCode      int    `json:"exit_code"`
-		Time          string `json:"time"`
-		Memory        string `json:"memory"`
-		Message       string `json:"message"`
-	}
-
-	if err := c.Bind(&callbackPayload); err != nil {
-		fmt.Printf("Failed to bind callback payload: %v\n", err)
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid payload"})
-	}
-
-	// Update submission in database
-	db := config.DB
-	var submission models.Submission
-
-	if err := db.First(&submission, "id = ?", callbackPayload.SubmissionID).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return c.JSON(http.StatusNotFound, echo.Map{"error": "submission not found"})
-		}
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
-	}
-
-	// Update submission with results
-	submission.Result = callbackPayload.Result
-	submission.Score = callbackPayload.Score
-	submission.StdOutput = callbackPayload.StdOutput
-	submission.StdError = callbackPayload.StdError
-	submission.CompileOutput = callbackPayload.CompileOutput
-	submission.ExitSignal = callbackPayload.ExitSignal
-	submission.ExitCode = callbackPayload.ExitCode
-
-	if err := db.Save(&submission).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to update submission"})
-	}
-
-	// Broadcast update to SSE clients
-	sseUpdate := sse.SubmissionUpdate{
-		SubmissionID:  callbackPayload.SubmissionID,
-		Result:        callbackPayload.Result,
-		Score:         callbackPayload.Score,
-		StdOutput:     callbackPayload.StdOutput,
-		StdError:      callbackPayload.StdError,
-		CompileOutput: callbackPayload.CompileOutput,
-		ExitSignal:    callbackPayload.ExitSignal,
-		ExitCode:      callbackPayload.ExitCode,
-		Time:          callbackPayload.Time,
-		Memory:        callbackPayload.Memory,
-		Message:       callbackPayload.Message,
-		Status:        "completed",
-	}
-
-	// Broadcast to the user who made the submission
-	sse.GlobalSSEManager.BroadcastToUser(submission.UserID.String(), callbackPayload.SubmissionID, sseUpdate)
-
-	return c.JSON(http.StatusOK, echo.Map{
-		"message":       "submission updated successfully",
-		"submission_id": submission.ID,
-	})
 }

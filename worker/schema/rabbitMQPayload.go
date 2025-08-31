@@ -9,3 +9,4 @@ type RabbitMQPayload struct {
 	Language       string    `json:"language"`
 	SourceCode     string    `json:"source_code"`
 }
+

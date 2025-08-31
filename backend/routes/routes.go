@@ -1,7 +1,7 @@
 package routes
 
 import (
-	handler "OJ-backend/controllers"
+	"OJ-backend/controllers"
 	"OJ-backend/services/sse"
 
 	"github.com/labstack/echo/v4"
@@ -14,7 +14,6 @@ func RegisterRoutes(e *echo.Echo) {
 	e.GET("/contests", handler.GetAllContests)
 
 	// Callback route for workers (HMAC authenticated)
-	// TODO: handle how to mangage pub-sub data
 	// Protected routes
 	api := e.Group("/api")
 	api.Use(handler.JWTMiddleware())
@@ -23,10 +22,12 @@ func RegisterRoutes(e *echo.Echo) {
 	api.GET("/problems/:id", handler.GetAllProblemsByContestID)
 	api.GET("/problem/:id", handler.GetProblemByID)
 	api.GET("/testcases/:id", handler.GetAllTestCasesByProblemID)
-	api.POST("/submit/:user_id/:problem_id", handler.HandleSubmission)
 	api.GET("/leaderboard/:contest_id", handler.GetLeaderboardByContestID)
+
+	// pushes data into submission queue
+	api.POST("/submit/:problem_id", handler.HandleSubmission)
 	// SSE endpoint for real-time submission updates
-	e.GET("/submission/:user_id/:submission_id/events", sse.HandleSSEConnection)
+	api.GET("/submission/events/:submission_id", sse.HandleSSEConnection)
 
 	// Admin routes
 	admin := e.Group("/admin")

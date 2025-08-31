@@ -2,7 +2,7 @@ package main
 
 import (
 	"OJ-Worker/config"
-	"OJ-Worker/isolateJob"
+	isolatejob "OJ-Worker/isolateJob"
 	"OJ-Worker/schema"
 	"context"
 	"encoding/json"
@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/rabbitmq/amqp091-go"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 func failOnError(err error, msg string) {
@@ -23,9 +23,7 @@ func failOnError(err error, msg string) {
 }
 
 // processMessage processes a submission message
-func processMessage(ctx context.Context, d amqp091.Delivery, workerTag string) {
-	log.Printf("%s: Processing submission: %s", workerTag, d.Body)
-
+func processMessage(ctx context.Context, d amqp.Delivery, workerTag string, ch *amqp.Channel) {
 	// Parse submission from message
 	var submission schema.RabbitMQPayload
 	if err := json.Unmarshal(d.Body, &submission); err != nil {
@@ -41,7 +39,6 @@ func processMessage(ctx context.Context, d amqp091.Delivery, workerTag string) {
 	if err := isolatejob.ProcessSubmission(&submission, response, ctx); err != nil {
 		log.Printf("%s: Failed to process submission %s: %v", workerTag, submission.SubmissionID, err)
 		response.Result = schema.ResultSystemError
-		response.Message = "Internal processing error"
 	}
 
 	// Calculate score based on result
@@ -57,16 +54,35 @@ func processMessage(ctx context.Context, d amqp091.Delivery, workerTag string) {
 		JudgeResponse: *response,
 	}
 
-	// Will use pub sub	
+	// Marshal the publish payload to JSON
+	body, err := json.Marshal(publishPayload)
+	if err != nil {
+		log.Printf("%s: Failed to marshal publish payload: %v", workerTag, err)
+		return
+	}
+
+	err = ch.Publish(
+		"",              // exchange
+		d.ReplyTo,       // routing key
+		false,          // mandatory
+		false,          // immediate
+		amqp.Publishing{
+			ContentType: "application/json",
+			Body:        body,
+			DeliveryMode: amqp.Persistent,
+		},
+	)
+	if err != nil {
+		log.Printf("%s: Failed to publish result: %v", workerTag, err)
+		return
+	}
 
 	// Log all fields of publishPayload.JudgeResponse
 	log.Printf("%s: JudgeResponse fields for submission %s:", workerTag, submission.SubmissionID)
 	log.Printf("  Stderr: %s", publishPayload.JudgeResponse.Stderr)
 	log.Printf("  Time: %s", publishPayload.JudgeResponse.Time)
 	log.Printf("  Memory: %s", publishPayload.JudgeResponse.Memory)
-	log.Printf("  ExitSignal: %s", publishPayload.JudgeResponse.ExitSignal)
 	log.Printf("  ExitCode: %s", publishPayload.JudgeResponse.ExitCode)
-	log.Printf("  Message: %s", publishPayload.JudgeResponse.Message)
 	log.Printf("  Result: %s", publishPayload.JudgeResponse.Result)
 	log.Printf("  CompileOutput: %s", publishPayload.JudgeResponse.CompileOutput)
 	log.Printf("  WrongAnswers: %+v", publishPayload.JudgeResponse.WrongAnswers)
@@ -76,7 +92,12 @@ func main() {
 	// Load environment variables
 	config.LoadEnv()
 
-	// Connect to the database
+	_, err := config.ConnectRabbitMQ()
+	if err != nil {
+		log.Printf("Failed to connect to RabbitMQ: %v", err)
+		return
+	}
+
 	db, err := config.ConnectDB()
 	if err != nil {
 		log.Printf("Failed to connect to the database: %v", err)
@@ -91,62 +112,35 @@ func main() {
 	}
 
 	log.Printf("Starting %d workers", numWorkers)
-
-	// Configure RabbitMQ connection from environment variables.
-	amqpURI := config.GetEnv("RABBITMQ_URL")
-	if amqpURI == "" {
-		amqpURI = "amqp://guest:guest@localhost:5672" // Default fallback
+	// create channel
+	ch, err := config.CreateRabbitMQChannel()
+	if err != nil {
+		log.Fatalf("Failed to create submit channel: %s", err)
 	}
-
-	// 1. Connect to RabbitMQ
-	conn, err := amqp091.Dial(amqpURI)
-	failOnError(err, "Failed to connect to RabbitMQ")
-	defer func() {
-		log.Println("[*] Closing RabbitMQ connection...")
-		if err := conn.Close(); err != nil {
-			log.Printf("Error closing connection: %s", err)
-		}
-	}()
-
-	// 2. Open a channel
-	ch, err := conn.Channel()
-	failOnError(err, "Failed to open a channel")
-	defer func() {
-		log.Println("[*] Closing RabbitMQ channel...")
-		if err := ch.Close(); err != nil {
-			log.Printf("Error closing channel: %s", err)
-		}
-	}()
-
-	// 3. Declare a durable queue
-	q, err := ch.QueueDeclare(
-		"submissions", // name
-		true,          // durable - messages will survive broker restarts
-		false,         // delete when unused
-		false,         // exclusive - only accessible by this connection
-		false,         // no-wait - don't wait for server confirmation
-		nil,           // arguments
-	)
-	failOnError(err, "Failed to declare a queue")
-
-	// 4. Set Quality of Service (QoS) for prefetch
-	// This ensures that RabbitMQ will send at most `numWorkers` messages to this consumer
-	// that have not yet been acknowledged, distributing them among your workers.
+	defer ch.Close()
+	// create submission queue
+	submissionQueue, err := ch.QueueDeclare("submissions", true, false, false, false, nil)
+	if err != nil {
+		log.Fatalf("Failed to declare submission queue: %s", err)
+	}
 	err = ch.Qos(
-		numWorkers, // prefetch count: send `numWorkers` unacknowledged messages
-		0,          // prefetch size: 0 means no limit on message size
-		false,      // global: false means QoS applies per consumer
+		numWorkers,
+		0,
+		false,
 	)
 	failOnError(err, "Failed to set QoS")
-
+	// get code from there
+	// do the processing
+	// send results to the temp queue
+	// close the channel
 	msgs, err := ch.Consume(
-		q.Name, // queue name
-		"",     // consumer: empty string for auto-generated consumer tag
-		false,  // auto-ack: false for manual acknowledgement
-		false,  // exclusive: false allows multiple consumers
-		false,  // no-local: false means consume messages published by this connection
-		false,  // no-wait: don't wait for server confirmation
-		nil,    // args
+		submissionQueue.Name, // queue name
+		"",                       // consumer: empty string for auto-generated consumer tag
+		false,                    // auto-ack: false for manual acknowledgement
+		false,                    // exclusive: false allows multiple consumers
+		false,                    // no-local: false means consume messages published by this connection
+		false,                    // no-wait: don't wait for server confirmation
+		nil,                      // args
 	)
 	failOnError(err, "Failed to register a consumer")
 
@@ -170,7 +164,7 @@ func main() {
 						log.Printf("%s: Message channel closed. Worker exiting.", workerTag)
 						return
 					}
-					processMessage(ctx, d, workerTag)
+					processMessage(ctx, d, workerTag,ch)
 					d.Ack(false) // Acknowledge the message completed
 				case <-ctx.Done():
 					log.Printf("%s: Application context cancelled. Worker exiting gracefully.", workerTag)

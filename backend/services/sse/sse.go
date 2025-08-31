@@ -5,17 +5,18 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"sync"
+	"strconv"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
-)
+	"gorm.io/gorm"
 
-// SSEManager manages all SSE connections
-type SSEManager struct {
-	clients    map[string]map[string]*SSEClient // userID -> submissionID -> client
-	clientsMux sync.RWMutex
-}
+	"OJ-backend/config"
+	handler "OJ-backend/controllers"
+	model "OJ-backend/models"
+)
 
 // SSEClient represents a single SSE connection
 type SSEClient struct {
@@ -28,98 +29,23 @@ type SSEClient struct {
 
 // SubmissionUpdate represents the data sent via SSE
 type SubmissionUpdate struct {
-	SubmissionID  string `json:"submission_id"`
-	Result        string `json:"result"`
-	Score         int    `json:"score"`
-	StdOutput     string `json:"std_output"`
-	StdError      string `json:"std_error"`
-	CompileOutput string `json:"compile_output"`
-	ExitSignal    int    `json:"exit_signal"`
-	ExitCode      int    `json:"exit_code"`
-	Time          string `json:"time"`
-	Memory        string `json:"memory"`
-	Message       string `json:"message"`
-	Status        string `json:"status"` // "completed", "error", etc.
-}
-
-var GlobalSSEManager *SSEManager
-
-func init() {
-	GlobalSSEManager = &SSEManager{
-		clients: make(map[string]map[string]*SSEClient),
-	}
-
-	// Start cleanup routine for expired connections
-	go GlobalSSEManager.cleanupExpiredConnections()
-}
-
-// AddClient adds a new SSE client connection
-func (m *SSEManager) AddClient(userID, submissionID string, w http.ResponseWriter) *SSEClient {
-	m.clientsMux.Lock()
-	defer m.clientsMux.Unlock()
-
-	client := &SSEClient{
-		UserID:         userID,
-		SubmissionID:   submissionID,
-		ResponseWriter: w,
-		Done:           make(chan bool, 1),
-		Created:        time.Now(),
-	}
-
-	if m.clients[userID] == nil {
-		m.clients[userID] = make(map[string]*SSEClient)
-	}
-
-	m.clients[userID][submissionID] = client
-	log.Printf("Added SSE client for user %s, submission %s", userID, submissionID)
-
-	return client
-}
-
-// RemoveClient removes an SSE client connection
-func (m *SSEManager) RemoveClient(userID, submissionID string) {
-	m.clientsMux.Lock()
-	defer m.clientsMux.Unlock()
-
-	if userClients, exists := m.clients[userID]; exists {
-		if client, exists := userClients[submissionID]; exists {
-			close(client.Done)
-			delete(userClients, submissionID)
-
-			if len(userClients) == 0 {
-				delete(m.clients, userID)
-			}
-
-			log.Printf("Removed SSE client for user %s, submission %s", userID, submissionID)
-		}
-	}
-}
-
-// BroadcastToUser sends an update to a specific user's submission
-func (m *SSEManager) BroadcastToUser(userID, submissionID string, update SubmissionUpdate) {
-	m.clientsMux.RLock()
-	defer m.clientsMux.RUnlock()
-
-	if userClients, exists := m.clients[userID]; exists {
-		if client, exists := userClients[submissionID]; exists {
-			if err := m.sendSSEMessage(client, update); err != nil {
-				log.Printf("Failed to send SSE message to user %s, submission %s: %v", userID, submissionID, err)
-				// Remove the client if sending fails
-				go m.RemoveClient(userID, submissionID)
-			} else {
-				log.Printf("Sent SSE update to user %s, submission %s", userID, submissionID)
-				// Close connection after sending the update
-				go func() {
-					time.Sleep(100 * time.Millisecond) // Small delay to ensure message is sent
-					m.RemoveClient(userID, submissionID)
-				}()
-			}
-		}
-	}
+	SubmissionID  string              `json:"submission_id"`
+	Result        string              `json:"result"`
+	Score         int                 `json:"score"`
+	StdOutput     string              `json:"std_output"`
+	StdError      string              `json:"std_error"`
+	CompileOutput string              `json:"compile_output"`
+	ExitSignal    int                 `json:"exit_signal"`
+	ExitCode      int                 `json:"exit_code"`
+	Time          string              `json:"time"`
+	Memory        string              `json:"memory"`
+	Message       string              `json:"message,omitempty"`
+	WrongAnswers  []WrongAnswer `json:"wrong_answers,omitempty"`
+	Status        string              `json:"status"` // "completed", "error", etc.
 }
 
 // sendSSEMessage sends a formatted SSE message to a client
-func (m *SSEManager) sendSSEMessage(client *SSEClient, update SubmissionUpdate) error {
+func sendSSEMessage(client *SSEClient, update SubmissionUpdate) error {
 	data, err := json.Marshal(update)
 	if err != nil {
 		return fmt.Errorf("failed to marshal update: %v", err)
@@ -138,40 +64,17 @@ func (m *SSEManager) sendSSEMessage(client *SSEClient, update SubmissionUpdate) 
 	return nil
 }
 
-// cleanupExpiredConnections removes connections that have been open too long
-func (m *SSEManager) cleanupExpiredConnections() {
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		m.clientsMux.Lock()
-		for userID, userClients := range m.clients {
-			for submissionID, client := range userClients {
-				// Remove connections older than 5 minutes
-				if time.Since(client.Created) > 5*time.Minute {
-					log.Printf("Cleaning up expired SSE connection for user %s, submission %s", userID, submissionID)
-					close(client.Done)
-					delete(userClients, submissionID)
-				}
-			}
-			if len(userClients) == 0 {
-				delete(m.clients, userID)
-			}
-		}
-		m.clientsMux.Unlock()
-	}
-}
-
 // HandleSSEConnection handles incoming SSE connection requests
 func HandleSSEConnection(c echo.Context) error {
-	userID := c.Param("user_id")
+	user := c.Get("user").(*jwt.Token)
+	claims := user.Claims.(*handler.Claims)
+	userID := claims.UserID
 	submissionID := c.Param("submission_id")
 
 	if userID == "" || submissionID == "" {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "user_id and submission_id are required"})
 	}
 
-	// Set SSE headers
 	w := c.Response().Writer
 	h := c.Response().Header()
 	h.Set("Content-Type", "text/event-stream")
@@ -180,8 +83,13 @@ func HandleSSEConnection(c echo.Context) error {
 	h.Set("Access-Control-Allow-Origin", "*")
 	h.Set("Access-Control-Allow-Headers", "Cache-Control")
 
-	// Add client to manager
-	client := GlobalSSEManager.AddClient(userID, submissionID, w)
+	client := &SSEClient{
+		UserID:         userID,
+		SubmissionID:   submissionID,
+		ResponseWriter: w,
+		Done:           make(chan bool, 1),
+		Created:        time.Now(),
+	}
 
 	// Send initial connection message
 	initialUpdate := SubmissionUpdate{
@@ -190,11 +98,41 @@ func HandleSSEConnection(c echo.Context) error {
 		Message:      "Connected to submission updates",
 	}
 
-	if err := GlobalSSEManager.sendSSEMessage(client, initialUpdate); err != nil {
+	if err := sendSSEMessage(client, initialUpdate); err != nil {
 		log.Printf("Failed to send initial SSE message: %v", err)
-		GlobalSSEManager.RemoveClient(userID, submissionID)
 		return err
 	}
+
+	// Start goroutine to wait for queue data and handle it
+	go func() {
+		defer func() {
+			client.Done <- true
+		}()
+
+		// consumes result from queue and returns the data
+		data, err := consumeResult(submissionID)
+		if err != nil {
+			log.Printf("Failed to consume result from queue: %v", err)
+			errorUpdate := SubmissionUpdate{
+				SubmissionID: submissionID,
+				Status:       "error",
+				Message:      fmt.Sprintf("Failed to get result: %v", err),
+			}
+			sendSSEMessage(client, errorUpdate)
+			return
+		}
+
+		// Handle the submission result
+		if err := handleSubmissionCallback(data, submissionID, userID, client); err != nil {
+			log.Printf("Failed to handle submission callback: %v", err)
+			errorUpdate := SubmissionUpdate{
+				SubmissionID: submissionID,
+				Status:       "error",
+				Message:      fmt.Sprintf("Failed to process result: %v", err),
+			}
+			sendSSEMessage(client, errorUpdate)
+		}
+	}()
 
 	// Wait for completion or client disconnect
 	select {
@@ -202,8 +140,120 @@ func HandleSSEConnection(c echo.Context) error {
 		log.Printf("SSE connection closed for user %s, submission %s", userID, submissionID)
 	case <-c.Request().Context().Done():
 		log.Printf("SSE connection cancelled for user %s, submission %s", userID, submissionID)
-		GlobalSSEManager.RemoveClient(userID, submissionID)
 	}
 
+	return nil
+}
+
+func consumeResult(submissionID string) ([]byte, error) {
+	ch, err := config.CreateRabbitMQChannel()
+	if err != nil {
+		log.Fatalf("Failed to create submit channel: %s", err)
+	}
+	defer ch.Close()
+	msgs, err := ch.Consume(submissionID, "", false, false, false, false, nil)
+	if err != nil {
+		return nil, err
+	}
+	select {
+	case d := <-msgs:
+		d.Ack(false)
+		return d.Body, nil
+	case <-time.After(30 * time.Second): // optional timeout
+		return nil, fmt.Errorf("timeout waiting for response")
+	}
+}
+
+type receivedPayload struct {
+	SubmissionID  uuid.UUID     `json:"submission_id"`
+	Score         int           `json:"score"`
+	JudgeResponse JudgeResponse `json:"judge_response"`
+}
+
+type JudgeResponse struct {
+	Stderr        string        `json:"stderr"`
+	Time          string        `json:"time"`
+	Memory        string        `json:"memory"`
+	ExitCode      string        `json:"exit_code"`
+	Result        string        `json:"result"`
+	CompileOutput string        `json:"compile_output"`
+	WrongAnswers  []WrongAnswer `json:"wrong_answers"`
+}
+
+type WrongAnswer struct {
+	TestCaseID uuid.UUID `json:"test_case_id"`
+	Stdout     string `json:"stdout"`
+}
+
+func handleSubmissionCallback(data []byte, submissionID string, userID string, client *SSEClient) error {
+	// Parse the callback payload from queue data
+	var payload receivedPayload
+	if err := json.Unmarshal(data, &payload); err != nil {
+		log.Printf("Failed to unmarshal judge response: %v", err)
+		return fmt.Errorf("failed to parse judge response: %v", err)
+	}
+
+	judgeResponse := payload.JudgeResponse
+
+	// Log all fields of judgeResponse for debugging
+	log.Printf("Judge Response Details:")
+	log.Printf("  Stderr: %s", judgeResponse.Stderr)
+	log.Printf("  Time: %s", judgeResponse.Time)
+	log.Printf("  Memory: %s", judgeResponse.Memory)
+	log.Printf("  ExitCode: %s", judgeResponse.ExitCode)
+	log.Printf("  Result: %s", judgeResponse.Result)
+	log.Printf("  CompileOutput: %s", judgeResponse.CompileOutput)
+
+	db := config.DB
+	var submission model.Submission
+
+	if err := db.First(&submission, "id = ?", submissionID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("submission not found")
+		}
+		return fmt.Errorf("database error: %v", err)
+	}
+
+	// Update submission with results
+	submission.Result = judgeResponse.Result
+	submission.StdError = judgeResponse.Stderr
+	submission.CompileOutput = judgeResponse.CompileOutput
+	if len(judgeResponse.WrongAnswers) > 0 {
+        submission.WrongTestCase = judgeResponse.WrongAnswers[0].TestCaseID
+		submission.StdOutput = judgeResponse.WrongAnswers[0].Stdout
+    }
+
+	if exitCode, err := strconv.Atoi(judgeResponse.ExitCode); err == nil {
+		submission.ExitCode = exitCode
+	} else {
+		submission.ExitCode = 0
+		log.Printf("Failed to convert exit code '%s' to int: %v", judgeResponse.ExitCode, err)
+	}
+
+	if err := db.Save(&submission).Error; err != nil {
+		return fmt.Errorf("failed to update submission: %v", err)
+	}
+
+	// Create SSE update and send to client
+	sseUpdate := SubmissionUpdate{
+		SubmissionID:  submissionID,
+		Result:        judgeResponse.Result,
+		Score:         submission.Score, // Use existing score from DB
+		StdError:      judgeResponse.Stderr,
+		CompileOutput: judgeResponse.CompileOutput,
+		ExitCode:      submission.ExitCode,
+		Time:          judgeResponse.Time,
+		Memory:        judgeResponse.Memory,
+		WrongAnswers:  judgeResponse.WrongAnswers,
+		Status:        "completed",
+	}
+
+	// Send SSE message to client
+	if err := sendSSEMessage(client, sseUpdate); err != nil {
+		log.Printf("Failed to send SSE message: %v", err)
+		return fmt.Errorf("failed to send SSE message: %v", err)
+	}
+
+	log.Printf("Successfully processed submission %s with result %s", submissionID, judgeResponse.Result)
 	return nil
 }

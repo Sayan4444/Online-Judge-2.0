@@ -1,8 +1,9 @@
 package model
 
 import (
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type User struct {
@@ -51,15 +52,12 @@ type Submission struct {
 	Language       string    `json:"language" gorm:"not null"` // Programming language used for the submission
 	SourceCode     string    `json:"source_code" gorm:"not null"`
 	Score          int       `json:"score" gorm:"default:0"`
-	StdInput       string    `json:"std_input"`
-	ExpectedOutput string    `json:"expected_output"`
 	StdOutput      string    `json:"std_output"`
 	StdError       string    `json:"std_error"`
+	WrongTestCase  uuid.UUID `json:"wrong_test_case"`
 	CreatedAt      time.Time `json:"created_at" gorm:"autoCreateTime"`
 	CompileOutput  string    `json:"compile_output"` // Output from the compilation process
-	ExitSignal     int       `json:"exit_signal"`    // Exit signal from the execution of the code
 	ExitCode       int       `json:"exit_code"`      // Exit code from the execution of the code
-	CallbackURL    string    `json:"callback_url"`   // URL to send the result of the submission
 
 	Problem Problem `json:"problem" gorm:"foreignKey:ProblemID"`
 	User    User    `json:"user" gorm:"foreignKey:UserID"`

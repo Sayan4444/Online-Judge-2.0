@@ -4,9 +4,7 @@ type JudgeResponse struct {
 	Stderr           string   `json:"stderr"`
 	Time             string   `json:"time"`
 	Memory           string   `json:"memory"`
-	ExitSignal       string   `json:"exit_signal"`
 	ExitCode         string   `json:"exit_code"`
-	Message          string   `json:"message"`
 	Result           string   `json:"result"`
 	CompileOutput    string   `json:"compile_output"`
 	WrongAnswers     []WrongAnswer `json:"wrong_answers"`
