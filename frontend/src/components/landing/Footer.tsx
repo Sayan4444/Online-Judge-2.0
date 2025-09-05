@@ -1,8 +1,9 @@
 import React from "react";
+import { Instagram, Facebook, Github } from "lucide-react";
 
 const Footer = () => {
   return (
-    <footer className="bg-gray-800 text-white py-2 text-center w-full fixed bottom-0 left-0 z-50">
+    <footer className="py-4 text-center w-full fixed bottom-0 left-0 z-50 border-t-2">
       <div className="mb-2 flex justify-center space-x-6">
         <a
           href="https://github.com/"
@@ -11,7 +12,7 @@ const Footer = () => {
           aria-label="GitHub"
           className="hover:text-gray-400 transition"
         >
-          <i className="fab fa-github text-2xl"></i>
+          <Github className="text-2xl" />
         </a>
         <a
           href="https://facebook.com/"
@@ -20,7 +21,7 @@ const Footer = () => {
           aria-label="Facebook"
           className="hover:text-gray-400 transition"
         >
-          <i className="fab fa-facebook text-2xl"></i>
+          <Facebook className="text-2xl" />
         </a>
         <a
           href="https://instagram.com/"
@@ -29,16 +30,7 @@ const Footer = () => {
           aria-label="Instagram"
           className="hover:text-gray-400 transition"
         >
-          <i className="fab fa-instagram text-2xl"></i>
-        </a>
-        <a
-          href="https://discord.gg/"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Discord"
-          className="hover:text-gray-400 transition"
-        >
-          <i className="fab fa-discord text-2xl"></i>
+          <Instagram className="text-2xl" />
         </a>
       </div>
       <div>

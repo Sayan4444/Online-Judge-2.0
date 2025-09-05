@@ -215,9 +215,10 @@ const CodeEditor = ({
           tabSize: 2,
         }}
       />
+      <div className="font-bold text-lg">Submission Results</div>
 
-      {submissionResult && (
-        <div className="mt-4 p-4 border rounded-lg bg-gray-50">
+      {submissionResult ? (
+        <div className="mt-4 p-4 border rounded-lg">
           <div className="flex items-center gap-2 mb-2">
             <h3 className="font-semibold">Submission Result:</h3>
             <span
@@ -225,19 +226,15 @@ const CodeEditor = ({
             >
               {submissionResult.result}
             </span>
-            <span className="text-gray-600">
-              Score: {submissionResult.score}/100
-            </span>
+            <span className="">Score: {submissionResult.score}/100</span>
           </div>
 
           {submissionResult.message && (
-            <p className="text-sm text-gray-700 mb-2">
-              {submissionResult.message}
-            </p>
+            <p className="text-sm mb-2">{submissionResult.message}</p>
           )}
 
           {submissionResult.time && submissionResult.memory && (
-            <div className="text-sm text-gray-600 mb-2">
+            <div className="text-sm mb-2">
               Time: {submissionResult.time}ms | Memory:{" "}
               {submissionResult.memory}KB
             </div>
@@ -246,7 +243,7 @@ const CodeEditor = ({
           {submissionResult.compile_output && (
             <div className="mt-2">
               <h4 className="font-medium text-red-600">Compilation Output:</h4>
-              <pre className="text-sm bg-gray-100 p-2 rounded overflow-x-auto">
+              <pre className="text-sm p-2 rounded overflow-x-auto">
                 {submissionResult.compile_output}
               </pre>
             </div>
@@ -255,7 +252,7 @@ const CodeEditor = ({
           {submissionResult.std_output && (
             <div className="mt-2">
               <h4 className="font-medium text-green-600">Output:</h4>
-              <pre className="text-sm bg-gray-100 p-2 rounded overflow-x-auto">
+              <pre className="text-sm  p-2 rounded overflow-x-auto">
                 {submissionResult.std_output}
               </pre>
             </div>
@@ -264,19 +261,21 @@ const CodeEditor = ({
           {submissionResult.std_error && (
             <div className="mt-2">
               <h4 className="font-medium text-red-600">Error:</h4>
-              <pre className="text-sm bg-gray-100 p-2 rounded overflow-x-auto">
+              <pre className="text-sm  p-2 rounded overflow-x-auto">
                 {submissionResult.std_error}
               </pre>
             </div>
           )}
         </div>
+      ) : (
+        <p className="text-sm text-gray-500 text-center">No submissions yet</p>
       )}
 
       {isSubmitting && (
-        <div className="mt-4 p-4 border rounded-lg bg-blue-50">
+        <div className="mt-4 p-4 border rounded-lg">
           <div className="flex items-center gap-2">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-            <span className="text-blue-700">Processing your submission...</span>
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+            <span className="text-blue-500">Processing your submission...</span>
           </div>
         </div>
       )}

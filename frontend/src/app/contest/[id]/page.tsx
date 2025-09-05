@@ -21,7 +21,7 @@ const contest = async ({ params }: { params: Promise<{ id: string }> }) => {
   return (
     <>
       <Navbar user={session?.user} />
-      <div className="flex">
+      <div className="flex w-screen gap-6 px-10 mt-6">
         <ProblemTable problems={problems} />
         <LeaderBoard contestId={id} token={session.user.token!} />
       </div>

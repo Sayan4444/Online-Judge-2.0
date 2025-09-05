@@ -12,32 +12,36 @@ import {
 import LogoutButton from "../auth/LogoutButton";
 import { Button } from "../ui/button";
 import Link from "next/link";
+import { ThemeToggle } from "../theme/ThemeToggle";
 
 const Navbar = ({ user }: { user: CustomUser }) => {
   return (
     <>
-      <div className="flex items-center justify-between bg-gray-800 p-4">
+      <div className="flex items-center justify-between p-4 border-b-2">
         <Image src={ojImage} alt="Logo" width={50} height={50} />
-        <Popover>
-          <PopoverTrigger asChild>
-            <Avatar className="cursor-pointer">
-              <AvatarImage
-                src={user?.image!}
-                alt={user?.name!}
-                width={50}
-                height={50}
-                className="rounded-full"
-              />
-              <AvatarFallback>CN</AvatarFallback>
-            </Avatar>
-          </PopoverTrigger>
-          <PopoverContent className="p-2 flex flex-col items-start bg-gray-800">
-            <LogoutButton />
-            <Button className="rounded-none mt-2" variant="secondary">
-              <Link href="/profile">Profile</Link>
-            </Button>
-          </PopoverContent>
-        </Popover>
+        <div className="flex items-center gap-4">
+          <ThemeToggle />
+          <Popover>
+            <PopoverTrigger asChild>
+              <Avatar className="cursor-pointer">
+                <AvatarImage
+                  src={user?.image!}
+                  alt={user?.name!}
+                  width={50}
+                  height={50}
+                  className="rounded-full"
+                />
+                <AvatarFallback>CN</AvatarFallback>
+              </Avatar>
+            </PopoverTrigger>
+            <PopoverContent className="p-2 flex flex-col items-start">
+              <LogoutButton />
+              <Button className="rounded-none mt-2" variant="secondary">
+                <Link href="/profile">Profile</Link>
+              </Button>
+            </PopoverContent>
+          </Popover>
+        </div>
       </div>
     </>
   );

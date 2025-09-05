@@ -20,7 +20,7 @@ const page = async ({ params }: { params: Promise<{ id: string }> }) => {
   return (
     <>
       <Navbar user={session?.user} />
-      <div className="flex w-full p-4">
+      <div className="flex w-full p-4 gap-2">
         <ProblemDesc problem={problem!} />
         <CodeEditor user={session?.user} problem={problem!} />
       </div>
