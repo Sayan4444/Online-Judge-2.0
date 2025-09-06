@@ -1,0 +1,13 @@
+# Worker .dockerignore
+.git
+.gitignore
+README.md
+Dockerfile
+.dockerignore
+tmp/
+*.log
+.env
+.env.local
+.env.development
+.env.test
+.env.production

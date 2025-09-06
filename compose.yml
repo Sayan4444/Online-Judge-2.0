@@ -1,0 +1,108 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:latest
+    container_name: oj-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ} 
+    ports:
+      - "${POSTGRES_PORT}:${POSTGRES_PORT}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - oj-network
+    # Healthcheck to ensure PostgreSQL is ready to accept connections
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: oj-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    ports:
+      - "${RABBITMQ_PORT}:${RABBITMQ_PORT}"
+      - "${RABBITMQ_MANAGEMENT_PORT}:${RABBITMQ_MANAGEMENT_PORT}"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - oj-network
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend:
+    image: online-judge-backend:latest
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_SECRET: ${ADMIN_SECRET}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET}
+      DSN_STRING: ${DSN_STRING}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      PORT: ${BACKEND_PORT}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+    - oj-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:${BACKEND_PORT}/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  worker:
+    image: online-judge-worker:latest
+    environment:
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET}
+      DSN_STRING: ${DSN_STRING}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+    # This now waits for postgres and rabbitmq to pass their healthchecks
+    privileged: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+    - oj-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: oj-nginx
+    ports:
+      - "${NGINX_HOST_PORT}:${NGINX_CONTAINER_PORT}"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    # This now waits for the backend to pass its healthcheck
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - oj-network
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+
+networks:
+  oj-network:
+    driver: bridge

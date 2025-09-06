@@ -23,6 +23,10 @@ const (
 
 var boxIDCounter int64
 
+func isRootUser() bool {
+	return os.Getuid() == 0
+}
+
 type IsolateJob struct {
 	Submission *schema.RabbitMQPayload
 	Response   *schema.JudgeResponse
@@ -130,8 +134,13 @@ func (j *IsolateJob) initializeIsolate(ctx context.Context) error {
 
 func (j *IsolateJob) initializeFiles(filename string, ctx context.Context) error {
 	user := os.Getenv("USER")
-
-	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", fmt.Sprintf("sudo touch %s && sudo chown %s: %s", filename, user, filename))
+	var cmdStr string
+	if isRootUser() {
+		cmdStr = fmt.Sprintf("touch %s && chown %s: %s", filename, user, filename)
+	} else {
+		cmdStr = fmt.Sprintf("sudo touch %s && sudo chown %s: %s", filename, user, filename)
+	}
+	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", cmdStr)
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to initialize file %s: %v", filename, err)
@@ -169,13 +178,16 @@ func (j *IsolateJob) compile(ctx context.Context) (bool, error) {
 	--run \
 	-- /bin/bash %s > %s`
 
-	compilationTimeLimit := 10
+	// Time limits in seconds
+	compilationTimeLimit := 5
 	compilationWallTimeLimit := 10
-	compilationMemoryLimit := 10000000
-	compilationStackLimit := 10000000
 
+	// Memory limits in Kilobytes (KB)
+	compilationMemoryLimit := 512000  // 512 MB
+	compilationStackLimit := 128000   // 128 MB
+
+	
 	actualCompileCmd := fmt.Sprintf(cmdRun, j.BoxID, j.MetaFile, compilationTimeLimit, compilationWallTimeLimit, compilationMemoryLimit, compilationStackLimit, j.Language.OutputLimit, filepath.Base(compileScript), compileOutput)
-
 	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", actualCompileCmd)
 	err := cmd.Run()
 	compileOutputText, readErr := os.ReadFile(compileOutput)
@@ -184,16 +196,17 @@ func (j *IsolateJob) compile(ctx context.Context) (bool, error) {
 	}
 	// Checking the correctness
 	metadata, _ := j.getMetadata()
-	if metadata != nil {
-		fmt.Println("Compilation metadata:")
-		for key, value := range metadata {
-			fmt.Printf("%s: %s\n", key, value)
-		}
-	}
+
 	filesToRemove := []string{compileScript, compileOutput}
 
 	for _, file := range filesToRemove {
-		if err := exec.CommandContext(ctx, "sudo", "rm", "-rf", file).Run(); err != nil {
+		var cmd *exec.Cmd
+		if isRootUser() {
+			cmd = exec.CommandContext(ctx, "rm", "-rf", file)
+		} else {
+			cmd = exec.CommandContext(ctx, "sudo", "rm", "-rf", file)
+		}
+		if err := cmd.Run(); err != nil {
 			return false, fmt.Errorf("failed to remove file %s: %v", file, err)
 		}
 	}
@@ -253,9 +266,16 @@ func (j *IsolateJob) run(ctx context.Context) (bool, error) {
 			break
 		}
 	}
-	if err := exec.CommandContext(ctx, "sudo", "rm", "-rf", runScript).Run(); err != nil {
-			return false, fmt.Errorf("failed to remove file %s: %v", runScript, err)
-		}
+	
+	var rmCmd *exec.Cmd
+	if isRootUser() {
+		rmCmd = exec.CommandContext(ctx, "rm", "-rf", runScript)
+	} else {
+		rmCmd = exec.CommandContext(ctx, "sudo", "rm", "-rf", runScript)
+	}
+	if err := rmCmd.Run(); err != nil {
+		return false, fmt.Errorf("failed to remove file %s: %v", runScript, err)
+	}
 
 	if len(j.Response.WrongAnswers) > 0 {
 		j.Response.Result = schema.ResultWrongAnswer
@@ -290,12 +310,6 @@ func (j *IsolateJob) executeTestCase(ctx context.Context, testCase model.TestCas
 	}
 
 	metadata, _ := j.getMetadata()
-	if metadata != nil {
-		fmt.Println("Execution metadata:")
-		for key, value := range metadata {
-			fmt.Printf("%s: %s\n", key, value)
-		}
-	}
 	j.Response.ExitCode = metadata["exit-code"]
 	if currentTime := metadata["time"]; currentTime != "" {
 		if j.Response.Time == "" || currentTime > j.Response.Time {
@@ -355,7 +369,13 @@ func (j *IsolateJob) getMetadata() (map[string]string, error) {
 }
 
 func (j *IsolateJob) resetMetadata(ctx context.Context) error {
-	cmd := exec.CommandContext(ctx, "sudo", "rm", "-rf", j.MetaFile)
+	var cmd *exec.Cmd
+	if isRootUser() {
+		cmd = exec.CommandContext(ctx, "rm", "-rf", j.MetaFile)
+	} else {
+		cmd = exec.CommandContext(ctx, "sudo", "rm", "-rf", j.MetaFile)
+	}
+	
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to reset metadata: %v", err)
 	}

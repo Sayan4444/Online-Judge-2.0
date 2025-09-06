@@ -31,8 +31,8 @@ func main() {
 	
 	e.Use(middleware.CORS())
 
-	e.GET("/", func(c echo.Context) error {
-		return c.String(http.StatusOK, "Hello, World!")
+	e.GET("/health", func(c echo.Context) error {
+		return c.String(http.StatusOK, "Backend is healthy!")
 	})
 
 	// Connect to the database
@@ -40,5 +40,6 @@ func main() {
 
 	// Register routes
 	routes.RegisterRoutes(e)
-	e.Logger.Fatal(e.Start(":1323"))
+	port := config.GetEnv("PORT")
+	e.Logger.Fatal(e.Start(":" + port))
 }

@@ -359,7 +359,7 @@ func GetProblemByID(c echo.Context) error {
 	db := config.DB
 	var problem models.Problem
 
-	if err := db.Preload("Tests").First(&problem, "id = ?", problemID).Error; err != nil {
+	if err := db.Preload("Tests").Preload("Submissions").First(&problem, "id = ?", problemID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return c.JSON(http.StatusNotFound, echo.Map{"error": "problem not found"})
 		}
@@ -459,7 +459,7 @@ func GetAllTestCasesByProblemID(c echo.Context) error {
 	db := config.DB
 	var testCases []models.TestCase
 
-	if err := db.Where("problem_id = ?", problemID).Find(&testCases).Error; err != nil {
+	if err := db.Preload("Problem").Where("problem_id = ?", problemID).Find(&testCases).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to retrieve test cases"})
 	}
 

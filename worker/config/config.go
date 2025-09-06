@@ -15,14 +15,13 @@ import (
 	"gorm.io/gorm"
 )
 
-// path for env file
-const configPath = "./.env"
-
 // Load environment variables from env file
 func LoadEnv() {
-	err := godotenv.Load(configPath)
-	if err != nil {
-		panic(err)
+	// Load .env only if running locally
+	if _, exists := os.LookupEnv("RUNNING_IN_DOCKER"); !exists {
+		if err := godotenv.Load(".env"); err != nil {
+			log.Println("No .env file found, relying on environment variables")
+		}
 	}
 }
 
