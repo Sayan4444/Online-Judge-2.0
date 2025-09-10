@@ -1,0 +1,511 @@
+{
+    "languages": [
+        {
+            "id": 1,
+            "name": "C++",
+            "compile_command": "g++ -o solution solution.cpp",
+            "run_command": "./solution",
+            "time_limit": 2,
+            "memory_limit": 256000,
+            "stack_limit": 256000,
+            "wall_limit": 10000,
+            "output_limit": 64000,
+            "src_file": "solution.cpp"
+        },
+        {
+            "id": 2,
+            "name": "Java",
+            "compile_command": "javac Solution.java",
+            "run_command": "java Solution",
+            "time_limit": 3000,
+            "memory_limit": 512,
+            "wall_limit": 10,
+            "stack_limit": 8,
+            "output_limit": 64,
+            "src_file": "Solution.java"
+        },
+        {
+            "id": 3,
+            "name": "Python",
+            "compile_command": "",
+            "run_command": "python3 solution.py",
+            "time_limit": 5000,
+            "memory_limit": 256,
+            "wall_limit": 10,
+            "stack_limit": 8,
+            "output_limit": 64,
+            "src_file": "solution.py"
+        },
+        {
+            "id": 4,
+            "name": "C",
+            "compile_command": "gcc -o solution solution.c",
+            "run_command": "./solution",
+            "time_limit": 2000,
+            "memory_limit": 256,
+            "wall_limit": 5,
+            "stack_limit": 8,
+            "output_limit": 64,
+            "src_file": "solution.c"
+        },
+        {
+            "id": 5,
+            "name": "JavaScript",
+            "compile_command": "",
+            "run_command": "node solution.js",
+            "time_limit": 3000,
+            "memory_limit": 256,
+            "wall_limit": 8,
+            "stack_limit": 8,
+            "output_limit": 64,
+            "src_file": "solution.js"
+        }
+    ],
+    "users": [  
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440001",
+            "username": "alice_coder",
+            "email": "alice@example.com",
+            "oauth_id": "github_123456",
+            "provider": "github",
+            "image": "https://avatar.githubusercontent.com/alice",
+            "created_at": "2024-01-15T10:30:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440002",
+            "username": "bob_solver",
+            "email": "bob@example.com",
+            "oauth_id": "google_789012",
+            "provider": "google",
+            "image": "https://lh3.googleusercontent.com/bob",
+            "created_at": "2024-01-16T14:20:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440003",
+            "username": "charlie_dev",
+            "email": "charlie@example.com",
+            "oauth_id": "github_345678",
+            "provider": "github",
+            "image": "https://avatar.githubusercontent.com/charlie",
+            "created_at": "2024-01-17T09:15:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440004",
+            "username": "diana_prog",
+            "email": "diana@example.com",
+            "oauth_id": "google_901234",
+            "provider": "google",
+            "image": "https://lh3.googleusercontent.com/diana",
+            "created_at": "2024-01-18T16:45:00Z"
+        },
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440005",
+            "username": "eve_hacker",
+            "email": "eve@example.com",
+            "oauth_id": "github_567890",
+            "provider": "github",
+            "image": "https://avatar.githubusercontent.com/eve",
+            "created_at": "2024-01-19T11:30:00Z"
+        }
+    ],
+    "contests": [
+        {
+            "id": "650e8400-e29b-41d4-a716-446655440001",
+            "name": "Weekly Programming Contest #1",
+            "description": "A beginner-friendly contest with basic algorithmic problems",
+            "start_time": "2024-03-01T10:00:00Z",
+            "end_time": "2024-03-01T13:00:00Z",
+            "created_at": "2024-02-25T15:30:00Z"
+        },
+        {
+            "id": "650e8400-e29b-41d4-a716-446655440002",
+            "name": "Advanced Algorithms Challenge",
+            "description": "Advanced contest featuring dynamic programming and graph algorithms",
+            "start_time": "2024-03-08T14:00:00Z",
+            "end_time": "2024-03-08T18:00:00Z",
+            "created_at": "2024-03-01T12:00:00Z"
+        },
+        {
+            "id": "650e8400-e29b-41d4-a716-446655440003",
+            "name": "Data Structures Showdown",
+            "description": "Contest focused on implementation of various data structures",
+            "start_time": "2024-03-15T09:00:00Z",
+            "end_time": "2024-03-15T12:00:00Z",
+            "created_at": "2024-03-08T10:15:00Z"
+        },
+        {
+            "id": "650e8400-e29b-41d4-a716-446655440004",
+            "name": "Math and Logic Contest",
+            "description": "Mathematical problem-solving contest",
+            "start_time": "2024-03-22T11:00:00Z",
+            "end_time": "2024-03-22T15:00:00Z",
+            "created_at": "2024-03-15T13:45:00Z"
+        },
+        {
+            "id": "650e8400-e29b-41d4-a716-446655440005",
+            "name": "Speed Coding Challenge",
+            "description": "Fast-paced contest with simple but tricky problems",
+            "start_time": "2024-03-29T16:00:00Z",
+            "end_time": "2024-03-29T18:00:00Z",
+            "created_at": "2024-03-22T14:20:00Z"
+        }
+    ],
+    "problems": [
+        {
+            "id": "750e8400-e29b-41d4-a716-446655440001",
+            "contest_id": "650e8400-e29b-41d4-a716-446655440001",
+            "title": "Two Sum",
+            "description": "Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target. You may assume that each input would have exactly one solution, and you may not use the same element twice.",
+            "created_at": "2024-02-25T16:00:00Z"
+        },
+        {
+            "id": "750e8400-e29b-41d4-a716-446655440002",
+            "contest_id": "650e8400-e29b-41d4-a716-446655440001",
+            "title": "Palindrome Check",
+            "description": "Given a string, determine if it is a palindrome, considering only alphanumeric characters and ignoring cases.",
+            "created_at": "2024-02-25T16:15:00Z"
+        },
+        {
+            "id": "750e8400-e29b-41d4-a716-446655440003",
+            "contest_id": "650e8400-e29b-41d4-a716-446655440002",
+            "title": "Longest Common Subsequence",
+            "description": "Given two strings text1 and text2, return the length of their longest common subsequence.",
+            "created_at": "2024-03-01T12:30:00Z"
+        },
+        {
+            "id": "750e8400-e29b-41d4-a716-446655440004",
+            "contest_id": "650e8400-e29b-41d4-a716-446655440002",
+            "title": "Dijkstra Shortest Path",
+            "description": "Implement Dijkstra algorithm to find the shortest path between two nodes in a weighted graph.",
+            "created_at": "2024-03-01T12:45:00Z"
+        },
+        {
+            "id": "750e8400-e29b-41d4-a716-446655440005",
+            "contest_id": "650e8400-e29b-41d4-a716-446655440003",
+            "title": "Binary Search Tree Implementation",
+            "description": "Implement a binary search tree with insert, delete, and search operations.",
+            "created_at": "2024-03-08T10:30:00Z"
+        },
+        {
+            "id": "750e8400-e29b-41d4-a716-446655440006",
+            "contest_id": "650e8400-e29b-41d4-a716-446655440004",
+            "title": "Prime Factorization",
+            "description": "Given a positive integer n, return all the prime factors of n.",
+            "created_at": "2024-03-15T14:00:00Z"
+        },
+        {
+            "id": "750e8400-e29b-41d4-a716-446655440007",
+            "contest_id": "650e8400-e29b-41d4-a716-446655440005",
+            "title": "Array Rotation",
+            "description": "Given an array, rotate the array to the right by k steps, where k is non-negative.",
+            "created_at": "2024-03-22T14:35:00Z"
+        }
+    ],
+    "test_cases": [
+        {
+            "id": "850e8400-e29b-41d4-a716-446655440001",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440001",
+            "input": "4\n2 7 11 15\n9",
+            "output": "0 1",
+            "created_at": "2024-02-25T16:05:00Z"
+        },
+        {
+            "id": "850e8400-e29b-41d4-a716-446655440002",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440001",
+            "input": "3\n3 2 4\n6",
+            "output": "1 2",
+            "created_at": "2024-02-25T16:05:00Z"
+        },
+        {
+            "id": "850e8400-e29b-41d4-a716-446655440003",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440001",
+            "input": "2\n3 3\n6",
+            "output": "0 1",
+            "created_at": "2024-02-25T16:05:00Z"
+        },
+        {
+            "id": "850e8400-e29b-41d4-a716-446655440004",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440002",
+            "input": "A man a plan a canal Panama",
+            "output": "true",
+            "created_at": "2024-02-25T16:20:00Z"
+        },
+        {
+            "id": "850e8400-e29b-41d4-a716-446655440005",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440002",
+            "input": "race a car",
+            "output": "false",
+            "created_at": "2024-02-25T16:20:00Z"
+        },
+        {
+            "id": "850e8400-e29b-41d4-a716-446655440006",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440002",
+            "input": "Was it a car or a cat I saw",
+            "output": "true",
+            "created_at": "2024-02-25T16:20:00Z"
+        },
+        {
+            "id": "850e8400-e29b-41d4-a716-446655440007",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440003",
+            "input": "abcde\nace",
+            "output": "3",
+            "created_at": "2024-03-01T12:35:00Z"
+        },
+        {
+            "id": "850e8400-e29b-41d4-a716-446655440008",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440003",
+            "input": "abc\nabc",
+            "output": "3",
+            "created_at": "2024-03-01T12:35:00Z"
+        },
+        {
+            "id": "850e8400-e29b-41d4-a716-446655440009",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440003",
+            "input": "abc\ndef",
+            "output": "0",
+            "created_at": "2024-03-01T12:35:00Z"
+        },
+        {
+            "id": "850e8400-e29b-41d4-a716-446655440010",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440006",
+            "input": "12",
+            "output": "2 2 3",
+            "created_at": "2024-03-15T14:05:00Z"
+        },
+        {
+            "id": "850e8400-e29b-41d4-a716-446655440011",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440006",
+            "input": "15",
+            "output": "3 5",
+            "created_at": "2024-03-15T14:05:00Z"
+        },
+        {
+            "id": "850e8400-e29b-41d4-a716-446655440012",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440006",
+            "input": "17",
+            "output": "17",
+            "created_at": "2024-03-15T14:05:00Z"
+        },
+        {
+            "id": "850e8400-e29b-41d4-a716-446655440013",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440007",
+            "input": "7\n1 2 3 4 5 6 7\n3",
+            "output": "5 6 7 1 2 3 4",
+            "created_at": "2024-03-22T14:40:00Z"
+        },
+        {
+            "id": "850e8400-e29b-41d4-a716-446655440014",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440007",
+            "input": "3\n-1 -100 3\n2",
+            "output": "3 -1 -100",
+            "created_at": "2024-03-22T14:40:00Z"
+        },
+        {
+            "id": "850e8400-e29b-41d4-a716-446655440015",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440007",
+            "input": "2\n1 2\n1",
+            "output": "2 1",
+            "created_at": "2024-03-22T14:40:00Z"
+        }
+    ],
+    "contest_users": [
+        {
+            "contest_id": "650e8400-e29b-41d4-a716-446655440001",
+            "user_id": "550e8400-e29b-41d4-a716-446655440001"
+        },
+        {
+            "contest_id": "650e8400-e29b-41d4-a716-446655440001",
+            "user_id": "550e8400-e29b-41d4-a716-446655440002"
+        },
+        {
+            "contest_id": "650e8400-e29b-41d4-a716-446655440001",
+            "user_id": "550e8400-e29b-41d4-a716-446655440003"
+        },
+        {
+            "contest_id": "650e8400-e29b-41d4-a716-446655440002",
+            "user_id": "550e8400-e29b-41d4-a716-446655440001"
+        },
+        {
+            "contest_id": "650e8400-e29b-41d4-a716-446655440002",
+            "user_id": "550e8400-e29b-41d4-a716-446655440004"
+        },
+        {
+            "contest_id": "650e8400-e29b-41d4-a716-446655440002",
+            "user_id": "550e8400-e29b-41d4-a716-446655440005"
+        },
+        {
+            "contest_id": "650e8400-e29b-41d4-a716-446655440003",
+            "user_id": "550e8400-e29b-41d4-a716-446655440002"
+        },
+        {
+            "contest_id": "650e8400-e29b-41d4-a716-446655440003",
+            "user_id": "550e8400-e29b-41d4-a716-446655440003"
+        },
+        {
+            "contest_id": "650e8400-e29b-41d4-a716-446655440003",
+            "user_id": "550e8400-e29b-41d4-a716-446655440005"
+        },
+        {
+            "contest_id": "650e8400-e29b-41d4-a716-446655440004",
+            "user_id": "550e8400-e29b-41d4-a716-446655440001"
+        },
+        {
+            "contest_id": "650e8400-e29b-41d4-a716-446655440004",
+            "user_id": "550e8400-e29b-41d4-a716-446655440003"
+        },
+        {
+            "contest_id": "650e8400-e29b-41d4-a716-446655440004",
+            "user_id": "550e8400-e29b-41d4-a716-446655440004"
+        },
+        {
+            "contest_id": "650e8400-e29b-41d4-a716-446655440005",
+            "user_id": "550e8400-e29b-41d4-a716-446655440002"
+        },
+        {
+            "contest_id": "650e8400-e29b-41d4-a716-446655440005",
+            "user_id": "550e8400-e29b-41d4-a716-446655440004"
+        },
+        {
+            "contest_id": "650e8400-e29b-41d4-a716-446655440005",
+            "user_id": "550e8400-e29b-41d4-a716-446655440005"
+        }
+    ],
+    "submissions": [
+        {
+            "id": "950e8400-e29b-41d4-a716-446655440001",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440001",
+            "user_id": "550e8400-e29b-41d4-a716-446655440001",
+            "contest_id": "650e8400-e29b-41d4-a716-446655440001",
+            "submitted_at": "2024-03-01T10:15:00Z",
+            "result": "AC",
+            "language": "C++",
+            "source_code": "#include<iostream>\n#include<vector>\n#include<unordered_map>\nusing namespace std;\n\nint main(){\n    int n, target;\n    cin >> n;\n    vector<int> nums(n);\n    for(int i = 0; i < n; i++) cin >> nums[i];\n    cin >> target;\n    \n    unordered_map<int, int> mp;\n    for(int i = 0; i < n; i++){\n        if(mp.count(target - nums[i])){\n            cout << mp[target - nums[i]] << \" \" << i << endl;\n            return 0;\n        }\n        mp[nums[i]] = i;\n    }\n    return 0;\n}",
+            "score": 100,
+            "std_output": "0 1",
+            "std_error": "",
+            "wrong_test_case": "00000000-0000-0000-0000-000000000000",
+            "created_at": "2024-03-01T10:15:00Z",
+            "compile_output": "Compilation successful",
+            "exit_code": 0
+        },
+        {
+            "id": "950e8400-e29b-41d4-a716-446655440002",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440002",
+            "user_id": "550e8400-e29b-41d4-a716-446655440002",
+            "contest_id": "650e8400-e29b-41d4-a716-446655440001",
+            "submitted_at": "2024-03-01T10:30:00Z",
+            "result": "AC",
+            "language": "Python",
+            "source_code": "def is_palindrome(s):\n    cleaned = \"\".join(char.lower() for char in s if char.isalnum())\n    return cleaned == cleaned[::-1]\n\ns = input().strip()\nprint(\"true\" if is_palindrome(s) else \"false\")",
+            "score": 100,
+            "std_output": "true",
+            "std_error": "",
+            "wrong_test_case": "00000000-0000-0000-0000-000000000000",
+            "created_at": "2024-03-01T10:30:00Z",
+            "compile_output": "",
+            "exit_code": 0
+        },
+        {
+            "id": "950e8400-e29b-41d4-a716-446655440003",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440001",
+            "user_id": "550e8400-e29b-41d4-a716-446655440003",
+            "contest_id": "650e8400-e29b-41d4-a716-446655440001",
+            "submitted_at": "2024-03-01T10:45:00Z",
+            "result": "WA",
+            "language": "Java",
+            "source_code": "import java.util.*;\npublic class Solution {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        int n = sc.nextInt();\n        int[] nums = new int[n];\n        for(int i = 0; i < n; i++) nums[i] = sc.nextInt();\n        int target = sc.nextInt();\n        \n        for(int i = 0; i < n; i++){\n            for(int j = i+1; j < n; j++){\n                if(nums[i] + nums[j] == target){\n                    System.out.println(j + \" \" + i); // Wrong order!\n                    return;\n                }\n            }\n        }\n    }\n}",
+            "score": 0,
+            "std_output": "1 0",
+            "std_error": "",
+            "wrong_test_case": "850e8400-e29b-41d4-a716-446655440001",
+            "created_at": "2024-03-01T10:45:00Z",
+            "compile_output": "Compilation successful",
+            "exit_code": 0
+        },
+        {
+            "id": "950e8400-e29b-41d4-a716-446655440004",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440003",
+            "user_id": "550e8400-e29b-41d4-a716-446655440001",
+            "contest_id": "650e8400-e29b-41d4-a716-446655440002",
+            "submitted_at": "2024-03-08T14:20:00Z",
+            "result": "AC",
+            "language": "C++",
+            "source_code": "#include<iostream>\n#include<vector>\n#include<string>\nusing namespace std;\n\nint lcs(string text1, string text2) {\n    int m = text1.length(), n = text2.length();\n    vector<vector<int>> dp(m + 1, vector<int>(n + 1, 0));\n    \n    for (int i = 1; i <= m; i++) {\n        for (int j = 1; j <= n; j++) {\n            if (text1[i-1] == text2[j-1]) {\n                dp[i][j] = dp[i-1][j-1] + 1;\n            } else {\n                dp[i][j] = max(dp[i-1][j], dp[i][j-1]);\n            }\n        }\n    }\n    return dp[m][n];\n}\n\nint main() {\n    string text1, text2;\n    cin >> text1 >> text2;\n    cout << lcs(text1, text2) << endl;\n    return 0;\n}",
+            "score": 100,
+            "std_output": "3",
+            "std_error": "",
+            "wrong_test_case": "00000000-0000-0000-0000-000000000000",
+            "created_at": "2024-03-08T14:20:00Z",
+            "compile_output": "Compilation successful",
+            "exit_code": 0
+        },
+        {
+            "id": "950e8400-e29b-41d4-a716-446655440005",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440006",
+            "user_id": "550e8400-e29b-41d4-a716-446655440004",
+            "contest_id": "650e8400-e29b-41d4-a716-446655440004",
+            "submitted_at": "2024-03-22T11:25:00Z",
+            "result": "AC",
+            "language": "Python",
+            "source_code": "def prime_factors(n):\n    factors = []\n    d = 2\n    while d * d <= n:\n        while n % d == 0:\n            factors.append(d)\n            n //= d\n        d += 1\n    if n > 1:\n        factors.append(n)\n    return factors\n\nn = int(input())\nresult = prime_factors(n)\nprint(\" \".join(map(str, result)))",
+            "score": 100,
+            "std_output": "2 2 3",
+            "std_error": "",
+            "wrong_test_case": "00000000-0000-0000-0000-000000000000",
+            "created_at": "2024-03-22T11:25:00Z",
+            "compile_output": "",
+            "exit_code": 0
+        },
+        {
+            "id": "950e8400-e29b-41d4-a716-446655440006",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440007",
+            "user_id": "550e8400-e29b-41d4-a716-446655440005",
+            "contest_id": "650e8400-e29b-41d4-a716-446655440005",
+            "submitted_at": "2024-03-29T16:15:00Z",
+            "result": "AC",
+            "language": "JavaScript",
+            "source_code": "const readline = require(\"readline\");\nconst rl = readline.createInterface({\n    input: process.stdin,\n    output: process.stdout\n});\n\nlet lines = [];\nrl.on(\"line\", (line) => {\n    lines.push(line);\n    if (lines.length === 3) {\n        const n = parseInt(lines[0]);\n        const nums = lines[1].split(\" \").map(Number);\n        const k = parseInt(lines[2]);\n        \n        function rotate(nums, k) {\n            k = k % nums.length;\n            return nums.slice(-k).concat(nums.slice(0, -k));\n        }\n        \n        const result = rotate(nums, k);\n        console.log(result.join(\" \"));\n        rl.close();\n    }\n});",
+            "score": 100,
+            "std_output": "5 6 7 1 2 3 4",
+            "std_error": "",
+            "wrong_test_case": "00000000-0000-0000-0000-000000000000",
+            "created_at": "2024-03-29T16:15:00Z",
+            "compile_output": "",
+            "exit_code": 0
+        },
+        {
+            "id": "950e8400-e29b-41d4-a716-446655440007",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440002",
+            "user_id": "550e8400-e29b-41d4-a716-446655440003",
+            "contest_id": "650e8400-e29b-41d4-a716-446655440001",
+            "submitted_at": "2024-03-01T11:00:00Z",
+            "result": "CE",
+            "language": "C++",
+            "source_code": "#include<iostream>\n#include<string>\nusing namespace std;\n\nint main(){\n    string s;\n    getline(cin, s);\n    \n    string cleaned = \"\";\n    for(char c : s){\n        if(isalnum(c)){\n            cleaned += tolower(c);\n        }\n    }\n    \n    string reversed = cleaned;\n    reverse(reversed.begin(), reversed.end()); // Missing #include<algorithm>\n    \n    if(cleaned == reversed){\n        cout << \"true\" << endl;\n    } else {\n        cout << \"false\" << endl;\n    }\n    \n    return 0;\n}",
+            "score": 0,
+            "std_output": "",
+            "std_error": "solution.cpp:15:5: error: 'reverse' was not declared in this scope",
+            "wrong_test_case": "00000000-0000-0000-0000-000000000000",
+            "created_at": "2024-03-01T11:00:00Z",
+            "compile_output": "Compilation failed: solution.cpp:15:5: error: 'reverse' was not declared in this scope\n15 |     reverse(reversed.begin(), reversed.end());\n   |     ^~~~~~~",
+            "exit_code": 1
+        },
+        {
+            "id": "950e8400-e29b-41d4-a716-446655440008",
+            "problem_id": "750e8400-e29b-41d4-a716-446655440007",
+            "user_id": "550e8400-e29b-41d4-a716-446655440002",
+            "contest_id": "650e8400-e29b-41d4-a716-446655440005",
+            "submitted_at": "2024-03-29T16:30:00Z",
+            "result": "TLE",
+            "language": "Python",
+            "source_code": "n = int(input())\nnums = list(map(int, input().split()))\nk = int(input())\n\n# Inefficient approach - rotating one by one\nfor _ in range(k):\n    last = nums.pop()\n    nums.insert(0, last)\n\nprint(\" \".join(map(str, nums)))",
+            "score": 0,
+            "std_output": "",
+            "std_error": "Time Limit Exceeded",
+            "wrong_test_case": "850e8400-e29b-41d4-a716-446655440013",
+            "created_at": "2024-03-29T16:30:00Z",
+            "compile_output": "",
+            "exit_code": 124
+        }
+    ]
+}
