@@ -52,6 +52,5 @@ func main() {
 	}
 	// Register routes
 	routes.RegisterRoutes(e)
-	port := config.GetEnv("PORT")
-	e.Logger.Fatal(e.Start(":" + port))
+	e.Logger.Fatal(e.Start(":1323"))
 }

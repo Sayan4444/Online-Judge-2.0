@@ -159,7 +159,7 @@ func consumeResult(submissionID string) ([]byte, error) {
 	case d := <-msgs:
 		d.Ack(false)
 		return d.Body, nil
-	case <-time.After(30 * time.Second): // optional timeout
+	case <-time.After(5 * time.Minute): // optional timeout
 		return nil, fmt.Errorf("timeout waiting for response")
 	}
 }

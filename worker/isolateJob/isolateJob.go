@@ -6,6 +6,7 @@ import (
 	"OJ-Worker/schema"
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -44,6 +45,7 @@ type IsolateJob struct {
 }
 
 func ProcessSubmission(submission *schema.RabbitMQPayload, response *schema.JudgeResponse, ctx context.Context) error {
+	log.Printf("Processing submission %s for problem %s by user %s", submission.SubmissionID, submission.ProblemID, submission.UserID)
 	db := config.DB
 	var language model.Language
 	if err := db.Where("name = ?", submission.Language).First(&language).Error; err != nil {
@@ -63,7 +65,15 @@ func ProcessSubmission(submission *schema.RabbitMQPayload, response *schema.Judg
 		TestCases:  testCases,
 	}
 
-	return job.execute(ctx)
+	err := job.execute(ctx)
+	log.Printf("worker-1: JudgeResponse fields for submission %s:", submission.SubmissionID)
+	log.Printf("  Stderr: %s", response.Stderr)
+	log.Printf("  Time: %s", response.Time)
+	log.Printf("  Memory: %s", response.Memory)
+	log.Printf("  ExitCode: %s", response.ExitCode)
+	log.Printf("  Result: %s", response.Result)
+	log.Printf("  CompileOutput: %s", response.CompileOutput)
+	return err
 }
 
 func (j *IsolateJob) execute(ctx context.Context) error {
@@ -72,7 +82,7 @@ func (j *IsolateJob) execute(ctx context.Context) error {
 		j.Response.Result = schema.ResultSystemError
 		return fmt.Errorf("failed to initialize isolate: %v", err)
 	}
-	fmt.Println("Isolate initialized successfully")
+	log.Println("Isolate initialized successfully")
 	success, err := j.compile(ctx)
 	if err != nil {
 		j.Response.Result = schema.ResultSystemError
@@ -81,7 +91,7 @@ func (j *IsolateJob) execute(ctx context.Context) error {
 	if !success {
 		return nil
 	}
-	fmt.Println("Code Compiled successfully")
+	log.Println("Code Compiled successfully")
 
 	success, err = j.run(ctx)
 	if err != nil {
@@ -93,7 +103,7 @@ func (j *IsolateJob) execute(ctx context.Context) error {
 	}
 
 	j.cleanUp(ctx)
-	fmt.Println("Code Ran successfully")
+	log.Println("Code Ran successfully")
 	return nil
 
 }
@@ -110,6 +120,7 @@ func (j *IsolateJob) initializeIsolate(ctx context.Context) error {
 	}
 
 	j.WorkDir = strings.TrimSpace(string(output))
+	log.Printf("Isolate work directory: %s", j.WorkDir)
 	j.BoxDir = filepath.Join(j.WorkDir, "box")
 	j.TmpDir = filepath.Join(j.WorkDir, "tmp")
 	j.SourceFile = filepath.Join(j.BoxDir, j.Language.SrcFile)
@@ -150,11 +161,15 @@ func (j *IsolateJob) initializeFiles(filename string, ctx context.Context) error
 }
 
 func (j *IsolateJob) compile(ctx context.Context) (bool, error) {
+	log.Println("Starting compilation process...")
 	// making compile script
 	compileScript := filepath.Join(j.BoxDir, "compile.sh")
 	compileOutput := filepath.Join(j.WorkDir, "compile_output.txt")
-	j.initializeFiles(compileOutput, ctx)
+	if err := j.initializeFiles(compileOutput, ctx); err != nil {
+		return false, fmt.Errorf("failed to initialize compile output file: %v", err)
+	}
 
+	log.Printf("Compile command from language config: %s\n", j.Language.CompileCommand)
 	if err := os.WriteFile(compileScript, []byte(j.Language.CompileCommand), 0755); err != nil {
 		return false, fmt.Errorf("failed to write compile script to file %s: %v", compileScript, err)
 	}
@@ -167,10 +182,10 @@ func (j *IsolateJob) compile(ctx context.Context) (bool, error) {
 	-i /dev/null \
 	-t %d \
 	-w %d \
-	-x 0 \
+	-x %d \
 	-m %d \
 	-k %d \
-	-p4 \
+	-p120 \
 	-f %d \
 	-E "HOME=/tmp" \
 	-E "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
@@ -180,53 +195,86 @@ func (j *IsolateJob) compile(ctx context.Context) (bool, error) {
 
 	// Time limits in seconds
 	compilationTimeLimit := 5
-	compilationWallTimeLimit := 10
+	compilationWallTimeLimit := 20
+	compilationExtraTimeLimit := 2 // Extra time for startup
 
 	// Memory limits in Kilobytes (KB)
-	compilationMemoryLimit := 512000  // 512 MB
-	compilationStackLimit := 128000   // 128 MB
+	compilationMemoryLimit := 512000 // 512 MB
+	compilationStackLimit := 128000  // 128 MB
 
-	
-	actualCompileCmd := fmt.Sprintf(cmdRun, j.BoxID, j.MetaFile, compilationTimeLimit, compilationWallTimeLimit, compilationMemoryLimit, compilationStackLimit, j.Language.OutputLimit, filepath.Base(compileScript), compileOutput)
+	actualCompileCmd := fmt.Sprintf(cmdRun, j.BoxID, j.MetaFile, compilationTimeLimit, compilationWallTimeLimit, compilationExtraTimeLimit, compilationMemoryLimit, compilationStackLimit, j.Language.OutputLimit, filepath.Base(compileScript), compileOutput)
+	log.Printf("Executing actual compile command:\n%s\n", actualCompileCmd)
+
 	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", actualCompileCmd)
 	err := cmd.Run()
+
 	compileOutputText, readErr := os.ReadFile(compileOutput)
-	if readErr == nil && len(compileOutputText) > 0 {
-		j.Response.CompileOutput = string(compileOutputText)
+	if readErr != nil {
+		log.Printf("Error reading compile output file %s: %v\n", compileOutput, readErr)
 	}
+	if len(compileOutputText) > 0 {
+		j.Response.CompileOutput = string(compileOutputText)
+		log.Printf("Compile output:\n%s\n", j.Response.CompileOutput)
+	} else {
+		log.Println("Compile output is empty.")
+	}
+
 	// Checking the correctness
-	metadata, _ := j.getMetadata()
+	metadata, metaErr := j.getMetadata()
+	if metaErr != nil {
+		log.Printf("Error getting metadata after compile: %v\n", metaErr)
+	} else {
+		log.Printf("Compilation metadata: %v\n", metadata)
+	}
 
 	filesToRemove := []string{compileScript, compileOutput}
 
 	for _, file := range filesToRemove {
-		var cmd *exec.Cmd
+		var rmCmd *exec.Cmd
 		if isRootUser() {
-			cmd = exec.CommandContext(ctx, "rm", "-rf", file)
+			rmCmd = exec.CommandContext(ctx, "rm", "-rf", file)
 		} else {
-			cmd = exec.CommandContext(ctx, "sudo", "rm", "-rf", file)
+			rmCmd = exec.CommandContext(ctx, "sudo", "rm", "-rf", file)
 		}
-		if err := cmd.Run(); err != nil {
-			return false, fmt.Errorf("failed to remove file %s: %v", file, err)
+		if err := rmCmd.Run(); err != nil {
+			// Log this error but don't fail the entire job because of a cleanup issue
+			log.Printf("Warning: failed to remove file %s: %v\n", file, err)
 		}
 	}
 
-	j.resetMetadata(ctx)
+	if err := j.resetMetadata(ctx); err != nil {
+		log.Printf("Warning: failed to reset metadata after compile: %v\n", err)
+	}
 
-	if _, ok := err.(*exec.ExitError); ok {
-		j.Response.ExitCode = metadata["exitcode"]
-		if status, ok := metadata["status"]; ok {
-			if status == "TO" {
-				j.Response.Result = schema.ResultCompileTimeLimitExceeded
+	if err != nil {
+		log.Printf("Compile command finished with error: %v\n", err)
+		if _, ok := err.(*exec.ExitError); ok {
+			if metaErr == nil {
+				j.Response.ExitCode = metadata["exitcode"]
+				if status, ok := metadata["status"]; ok {
+					log.Printf("Compilation status from metadata: %s\n", status)
+					if status == "TO" {
+						j.Response.Result = schema.ResultCompileTimeLimitExceeded
+						log.Println("Result set to: Compile Time Limit Exceeded")
+					} else {
+						j.Response.Result = schema.ResultCompileError
+						log.Println("Result set to: Compile Error due to status " + status)
+					}
+				} else {
+					j.Response.Result = schema.ResultCompileError
+					log.Println("Result set to: Compile Error (status not in metadata)")
+				}
 			} else {
-				j.Response.Result = schema.ResultCompileError
+				j.Response.Result = schema.ResultSystemError
+				log.Println("Result set to: System Error (could not read metadata after compile error)")
 			}
+			return false, nil
 		}
-		return false, nil
-
-	} else if err != nil {
-		return false, err
+		// For other errors (not ExitError), it's likely a system issue
+		return false, fmt.Errorf("compile command failed with non-exit error: %v", err)
 	}
+
+	log.Println("Compilation successful.")
 	return true, nil
 }
 
@@ -247,7 +295,7 @@ func (j *IsolateJob) run(ctx context.Context) (bool, error) {
 		-x 0 \
 		-m %d \
 		-k %d \
-		-p4 \
+		-p120 \
 		-f %d \
 		-E "HOME=/tmp" \
 		-E "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
@@ -256,8 +304,9 @@ func (j *IsolateJob) run(ctx context.Context) (bool, error) {
 		-- /bin/bash %s < %s > %s 2> %s`
 
 	actualRunCmd := fmt.Sprintf(cmdRun, j.BoxID, j.MetaFile, j.Language.TimeLimit, j.Language.WallLimit, j.Language.MemoryLimit, j.Language.StackLimit, j.Language.OutputLimit, filepath.Base(runScript), j.InputFile, j.OutputFile, j.ErrorFile)
-	
-	for _, testCase := range j.TestCases {
+	log.Printf("Actual run command template:\n%s", actualRunCmd)
+	for i, testCase := range j.TestCases {
+		log.Printf("Executing test case %d/%d (ID: %s)", i+1, len(j.TestCases), testCase.ID)
 		success, err := j.executeTestCase(ctx, testCase, actualRunCmd)
 		if err != nil {
 			return false, err
@@ -309,7 +358,12 @@ func (j *IsolateJob) executeTestCase(ctx context.Context, testCase model.TestCas
 		j.Response.Stderr = string(stderrOutputText)
 	}
 
-	metadata, _ := j.getMetadata()
+	metadata, metaErr := j.getMetadata()
+	if metaErr != nil {
+		log.Printf("Error getting metadata after run: %v", metaErr)
+	} else {
+		log.Printf("Run metadata: %v", metadata)
+	}
 	j.Response.ExitCode = metadata["exit-code"]
 	if currentTime := metadata["time"]; currentTime != "" {
 		if j.Response.Time == "" || currentTime > j.Response.Time {
@@ -385,6 +439,7 @@ func (j *IsolateJob) resetMetadata(ctx context.Context) error {
 }
 
 func (j *IsolateJob) cleanUp(ctx context.Context) error {
+	log.Printf("Cleaning up isolate box %d", j.BoxID)
 	cmd := exec.CommandContext(ctx, "isolate", "-b", strconv.Itoa(j.BoxID), "--cleanup")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to cleanup isolate box: %v", err)
