@@ -305,15 +305,23 @@ func (j *IsolateJob) run(ctx context.Context) (bool, error) {
 
 	actualRunCmd := fmt.Sprintf(cmdRun, j.BoxID, j.MetaFile, j.Language.TimeLimit, j.Language.WallLimit, j.Language.MemoryLimit, j.Language.StackLimit, j.Language.OutputLimit, filepath.Base(runScript), j.InputFile, j.OutputFile, j.ErrorFile)
 	log.Printf("Actual run command template:\n%s", actualRunCmd)
-	for i, testCase := range j.TestCases {
-		log.Printf("Executing test case %d/%d (ID: %s)", i+1, len(j.TestCases), testCase.ID)
-		success, err := j.executeTestCase(ctx, testCase, actualRunCmd)
-		if err != nil {
-			return false, err
-		}
-		if !success {
-			break
-		}
+
+	
+	var combinedInput strings.Builder
+	numTestCasesStr := strconv.Itoa(len(j.TestCases))
+	combinedInput.WriteString(numTestCasesStr + " ")
+	for _, testCase := range j.TestCases {
+		combinedInput.WriteString(testCase.Input + " ")
+	}
+
+	if err := os.WriteFile(j.InputFile, []byte(combinedInput.String()), 0755); err != nil {
+		return false, fmt.Errorf("failed to write combined stdin to file %s: %v", j.InputFile, err)
+	}
+
+	
+	success, err := j.executeTestCase(ctx, actualRunCmd)
+	if err != nil {
+		return false, err
 	}
 	
 	var rmCmd *exec.Cmd
@@ -326,7 +334,7 @@ func (j *IsolateJob) run(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("failed to remove file %s: %v", runScript, err)
 	}
 
-	if len(j.Response.WrongAnswers) > 0 {
+	if !success {
 		j.Response.Result = schema.ResultWrongAnswer
 		return false, nil
 	} else {
@@ -335,15 +343,7 @@ func (j *IsolateJob) run(ctx context.Context) (bool, error) {
 	}
 }
 
-func (j *IsolateJob) executeTestCase(ctx context.Context, testCase model.TestCase, actualRunCmd string) (bool, error) {
-	stdin := testCase.Input
-	stdoutExpected := testCase.Output
-
-	if err := os.WriteFile(j.InputFile, []byte(stdin), 0755); err != nil {
-		return false, fmt.Errorf("failed to write stdin to file %s: %v", j.InputFile, err)
-	}
-
-	// Create run script
+func (j *IsolateJob) executeTestCase(ctx context.Context, actualRunCmd string) (bool, error) {
 	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", actualRunCmd)
 	err := cmd.Run()
 
@@ -392,13 +392,22 @@ func (j *IsolateJob) executeTestCase(ctx context.Context, testCase model.TestCas
 		return false, err
 	}
 
-	if stdout != stdoutExpected && j.Response.Stderr == "" {
-		j.Response.Result = schema.ResultWrongAnswer
-		j.Response.WrongAnswers = append(j.Response.WrongAnswers, schema.WrongAnswer{
-			TestCaseID: testCase.ID.String(),
-			Stdout:     stdout,
-		})
-		return false, nil
+	actualOutputs := strings.Split(strings.TrimSpace(stdout), "\n")
+	for i, output := range actualOutputs {
+		testCase := j.TestCases[i]
+		expectedOutput := strings.TrimSpace(testCase.Output)
+		actualOutput := strings.TrimSpace(output)
+
+		if actualOutput != expectedOutput {
+			log.Printf("Wrong answer for test case index %d, ID %s. Expected: '%s', Got: '%s'", i, testCase.ID, expectedOutput, actualOutput)
+			j.Response.Result = schema.ResultWrongAnswer
+			j.Response.WrongAnswers = append(j.Response.WrongAnswers, schema.WrongAnswer{
+				TestCaseID:     testCase.ID.String(),
+				Stdout:   actualOutput,
+			})
+
+			return false, nil
+		}
 	}
 
 	return true, nil

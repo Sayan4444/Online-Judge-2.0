@@ -46,6 +46,7 @@ services:
       start_period: 10s
 
   backend:
+    build: ./backend
     image: online-judge-backend:latest
     environment:
       JWT_SECRET: ${JWT_SECRET}
@@ -72,6 +73,7 @@ services:
       start_period: 30s
 
   worker:
+    build: ./worker
     image: online-judge-worker:latest
     environment:
       WEBHOOK_SECRET: ${WEBHOOK_SECRET}
