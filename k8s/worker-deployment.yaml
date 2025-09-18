@@ -1,0 +1,34 @@
+# k8s/worker-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-deployment
+spec:
+  replicas: 25 # CHANGED: Set initial replicas to 25.
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+      - name: worker
+        image: pratik050/online-judge-worker:latest
+        env:
+        - name: DB_URL
+          valueFrom: { secretKeyRef: { name: online-judge-secret, key: DB_URL } }
+        - name: RABBITMQ_URL
+          valueFrom: { secretKeyRef: { name: online-judge-secret, key: RABBITMQ_URL } }
+        - name: NUM_WORKERS
+          value: "1" # NOTE: You might want to increase this to utilize the 4 cores within the pod.
+        resources:
+          limits:
+            cpu: "1000m" # CHANGED: Limit pod to exactly 4 vCPUs.
+            memory: "400Mi"  # CHANGED: Adjusted memory for a full machine.
+          requests:
+            cpu: "500m" # CHANGED: Request exactly 4 vCPUs.
+            memory: "100Mi"  # CHANGED: Adjusted memory for a full machine.
+        securityContext:
+          privileged: true

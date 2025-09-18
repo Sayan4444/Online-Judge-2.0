@@ -37,7 +37,7 @@ var RabbitMQConnection *amqp.Connection
 
 // Connect to database
 func ConnectDB() (*gorm.DB, error) {
-	dsn := GetEnv("DSN_STRING")
+	dsn := GetEnv("DB_URL")
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 
 	DB = db

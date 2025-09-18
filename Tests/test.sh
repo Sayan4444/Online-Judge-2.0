@@ -1,11 +1,14 @@
 #!/bin/bash
 
+# Record start time
+start_time=$(date +%s)
+
 # --- Configuration ---
 # The base URL of your API endpoint.
-URL="http://localhost:8080"
+URL="http://134.199.180.114:80"
 
 # Your JWT authorization token.
-TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMzIwNWI3MTgtZTFkZC00ZDFiLTk1YmEtNmU2NGFiNDNmZGRkIiwidXNlcm5hbWUiOiJ0ZXN0X3VzZXIiLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJleHAiOjE3NTc3ODMxMjN9.JJKnU3mNMZq5meR8g_7JO3jgmiSXqEUbRDR0bWXc3Cw"
+TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMzIwNWI3MTgtZTFkZC00ZDFiLTk1YmEtNmU2NGFiNDNmZGRkIiwidXNlcm5hbWUiOiJ0ZXN0X3VzZXIiLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJleHAiOjE3NTgxMzgyOTksImlhdCI6MTc1Nzg3OTA5OX0.4bMwX5RpGDroDPB31_QaudW5VVb3gVqT0MODBqtJdLU"
 
 # The unique identifier for the problem.
 PROBLEM_ID="750e8400-e29b-41d4-a716-446655440001"
@@ -115,3 +118,10 @@ curl -N -X GET \
     "$URL/api/submission/events/$SUBMISSION_ID"
 
 echo -e "\nStream finished."
+
+# Record end time
+end_time=$(date +%s)
+
+# Calculate and display the total time
+total_time=$((end_time - start_time))
+echo "Total time taken: $total_time seconds"

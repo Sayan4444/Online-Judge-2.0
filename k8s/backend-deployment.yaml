@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      nodeSelector:
+        doks.digitalocean.com/node-pool: online-judge-backend
+      containers:
+      - name: backend
+        image: pratik050/online-judge-backend:latest
+        ports:
+        - containerPort: 1323
+        env:
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: online-judge-secret
+              key: JWT_SECRET
+        - name: ADMIN_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: online-judge-secret
+              key: ADMIN_SECRET
+        - name: ADMIN_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: online-judge-secret
+              key: ADMIN_EMAIL
+        - name: ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: online-judge-secret
+              key: ADMIN_PASSWORD
+        - name: DB_URL
+          valueFrom:
+            secretKeyRef:
+              name: online-judge-secret
+              key: DB_URL
+        - name: RABBITMQ_URL
+          valueFrom:
+            secretKeyRef:
+              name: online-judge-secret
+              key: RABBITMQ_URL
+        - name: PORT
+          value: "1323"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "500m"
+          limits:
+            memory: "512Mi"
+            cpu: "1"

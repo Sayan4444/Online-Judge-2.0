@@ -1,7 +1,7 @@
 #!/bin/bash
 
 args=()
-for i in {1..15}; do
+for i in {1..120}; do
     args+=(--tab --command="bash -c './test.sh; exec bash'")
 done
 
