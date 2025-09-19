@@ -12,8 +12,6 @@ spec:
       labels:
         app: backend
     spec:
-      nodeSelector:
-        doks.digitalocean.com/node-pool: online-judge-backend
       containers:
       - name: backend
         image: pratik050/online-judge-backend:latest
@@ -54,7 +52,7 @@ spec:
           value: "1323"
         resources:
           requests:
-            memory: "256Mi"
+            memory: "512Mi"
             cpu: "500m"
           limits:
             memory: "512Mi"

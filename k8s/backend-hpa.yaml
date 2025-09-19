@@ -8,11 +8,19 @@ spec:
     kind: Deployment
     name: backend-deployment # Target the backend deployment
   minReplicas: 2
-  maxReplicas: 8 # Scale up to 8 backend pods
+  maxReplicas: 10 # Scale up to 8 backend pods
   metrics:
   - type: Resource
     resource:
       name: cpu
       target:
         type: Utilization
-        averageUtilization: 75 # Target 75% CPU usage
+        # Target 80% of the requested CPU (80% of 500m)
+        averageUtilization: 80
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        # Target 80% of the requested memory (80% of 512Mi)
+        averageUtilization: 80
