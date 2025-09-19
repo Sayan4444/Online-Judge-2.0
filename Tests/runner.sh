@@ -1,72 +1,29 @@
 #!/bin/bash
 
 # Record start time
-start_time=$(date +%s)
+start_time=$(date +%s.%N)
 
-# --- Configuration ---
-# The base URL of your API endpoint.
-URL="http://134.199.180.114:80"
+# --- Configuration from arguments ---
+if [ "$#" -lt 3 ]; then
+    echo "Usage: $0 <PROBLEM_ID> <LANGUAGE> <SOURCE_CODE_FILE> [TOKEN] [URL]"
+    echo "Example: $0 750e8400... C++ ../Test_Case_Generator/two_sum.cpp eyJhbGci..."
+    exit 1
+fi
 
-# Your JWT authorization token.
-TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMzIwNWI3MTgtZTFkZC00ZDFiLTk1YmEtNmU2NGFiNDNmZGRkIiwidXNlcm5hbWUiOiJ0ZXN0X3VzZXIiLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJleHAiOjE3NTgxMzgyOTksImlhdCI6MTc1Nzg3OTA5OX0.4bMwX5RpGDroDPB31_QaudW5VVb3gVqT0MODBqtJdLU"
+PROBLEM_ID="$1"
+LANGUAGE="$2"
+SOURCE_CODE_FILE="$3"
+TOKEN="${4:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMzIwNWI3MTgtZTFkZC00ZDFiLTk1YmEtNmU2NGFiNDNmZGRkIiwidXNlcm5hbWUiOiJ0ZXN0X3VzZXIiLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJleHAiOjE3NTg0NDg5NzYsImlhdCI6MTc1ODE4OTc3Nn0.O5oF0N0cgvJyngRpvXQZBd14yP_SuRDdymztfoveca8}"
+URL="${5:-http://localhost:8080}"
 
-# The unique identifier for the problem.
-PROBLEM_ID="750e8400-e29b-41d4-a716-446655440001"
-
-# The programming language of the source code.
-LANGUAGE="C++"
+# Check if the source code file exists
+if [ ! -f "$SOURCE_CODE_FILE" ]; then
+    echo "Error: Source code file not found at '$SOURCE_CODE_FILE'"
+    exit 1
+fi
 
 # The source code to be submitted.
-# Using a variable makes the curl command cleaner.
-SOURCE_CODE=$(cat <<'EOF'
-#include <iostream>
-#include <vector>
-#include <unordered_map>
-using namespace std;
-
-class Solution
-{
-public:
-    vector<int> twoSum(const vector<int> &nums, int target)
-    {
-        unordered_map<int, int> num_map;
-        for (int i = 0; i < nums.size(); ++i)
-        {
-            int complement = target - nums[i];
-            if (num_map.find(complement) != num_map.end())
-            {
-                return {num_map[complement], i};
-            }
-            num_map[nums[i]] = i;
-        }
-        return {};
-    }
-};
-
-int main()
-{
-    Solution sol;
-    int n;
-    vector<int> nums;
-    int target;
-    cin >> n;
-    for (int i = 0; i < n; i++)
-    {
-        int num;
-        cin >> num;
-        nums.push_back(num);
-    }
-    cin >> target;
-    vector<int> result = sol.twoSum(nums, target);
-    if (!result.empty())
-    {
-        cout << result[0] << " " << result[1];
-    }
-
-    return 0;
-}
-EOF
-)
+SOURCE_CODE=$(cat "$SOURCE_CODE_FILE")
 
 # --- Step 1: Submit the code via POST request ---
 echo "Submitting code to $URL/api/submit/$PROBLEM_ID..."
@@ -120,8 +77,8 @@ curl -N -X GET \
 echo -e "\nStream finished."
 
 # Record end time
-end_time=$(date +%s)
+end_time=$(date +%s.%N)
 
 # Calculate and display the total time
-total_time=$((end_time - start_time))
+total_time=$(awk "BEGIN {print $end_time - $start_time}")
 echo "Total time taken: $total_time seconds"

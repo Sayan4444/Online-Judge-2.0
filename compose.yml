@@ -85,8 +85,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2.0'
-          memory: 4G
+          cpus: ${WORKER_LIMIT_CPUS}
+          memory: ${WORKER_LIMIT_MEMORY}
     depends_on:
       postgres:
         condition: service_healthy

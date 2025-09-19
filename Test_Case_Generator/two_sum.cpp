@@ -28,24 +28,19 @@ int main()
     cin.tie(NULL);
 
     Solution sol;
-    // int t;
-    // cin >> t;
-    // while (t--)
+    int n;
+    cin >> n;
+    vector<int> nums(n);
+    int target;
+    for (int i = 0; i < n; i++)
     {
-        int n;
-        cin >> n;
-        vector<int> nums(n);
-        int target;
-        for (int i = 0; i < n; i++)
-        {
-            cin >> nums[i];
-        }
-        cin >> target;
-        vector<int> result = sol.twoSum(nums, target);
-        if (!result.empty())
-        {
-            cout << result[0] << " " << result[1] << "\n"; 
-        }
+        cin >> nums[i];
+    }
+    cin >> target;
+    vector<int> result = sol.twoSum(nums, target);
+    if (!result.empty())
+    {
+        cout << result[0] << " " << result[1] << "\n"; 
     }
     return 0;
 }
