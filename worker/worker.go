@@ -98,13 +98,6 @@ func main() {
 		return
 	}
 
-	db, err := config.ConnectDB()
-	if err != nil {
-		log.Printf("Failed to connect to the database: %v", err)
-	} else {
-		log.Printf("Successfully connected to the database: %s", db.Name())
-	}
-
 	// Configure the number of concurrent workers from environment variables.
 	numWorkers, err := strconv.Atoi(config.GetEnv("NUM_WORKERS"))
 	if err != nil {

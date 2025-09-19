@@ -579,8 +579,8 @@ func GetAllSubmissionsByProblemID(c echo.Context) error {
 // Handle submission for a problem
 func HandleSubmission(c echo.Context) error {
 	user := c.Get("user").(*jwt.Token)
-    claims := user.Claims.(*Claims)
-    userID := claims.UserID
+	claims := user.Claims.(*Claims)
+	userID := claims.UserID
 
 	problemID := c.Param("problem_id")
 	// print userid and problem id
@@ -616,31 +616,37 @@ func HandleSubmission(c echo.Context) error {
 	}
 
 	submission := models.Submission{
-		ID:             uuid.New(),
-		ProblemID:      problem.ID,
-		UserID:         uuid.MustParse(userID),
-		ContestID:      problem.ContestID,
-		SubmittedAt:    time.Now(),
-		Result:         "pending", // Initial status
-		SourceCode:     body.SourceCode,
-		Language:       body.Language,
-		Score:          0,              // Initial score
-		StdOutput:      "",             // Will be filled after execution
-		StdError:       "",             // Will be filled after execution
-		CompileOutput:  "",             // Will be filled after compilation
-		ExitCode:       0,              // Will be filled after execution
+		ID:            uuid.New(),
+		ProblemID:     problem.ID,
+		UserID:        uuid.MustParse(userID),
+		ContestID:     problem.ContestID,
+		SubmittedAt:   time.Now(),
+		Result:        "pending", // Initial status
+		SourceCode:    body.SourceCode,
+		Language:      body.Language,
+		Score:         0,  // Initial score
+		StdOutput:     "", // Will be filled after execution
+		StdError:      "", // Will be filled after execution
+		CompileOutput: "", // Will be filled after compilation
+		ExitCode:      0,  // Will be filled after execution
 	}
 	if err := db.Create(&submission).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "could not create submission"})
 	}
 
+	var testCases []models.TestCase
+	if err := db.Preload("Problem").Where("problem_id = ?", problemID).Find(&testCases).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to retrieve test cases"})
+	}
+
 	// Prepare RabbitMQ payload
 	rabbitmqPayload := models.RabbitMQPayload{
-		SubmissionID:   submission.ID,
-		ProblemID:      submission.ProblemID,
-		UserID:         submission.UserID,
-		Language:       submission.Language,
-		SourceCode:     submission.SourceCode,
+		SubmissionID: submission.ID,
+		ProblemID:    submission.ProblemID,
+		UserID:       submission.UserID,
+		Language:     language,
+		SourceCode:   submission.SourceCode,
+		TestCases:    testCases,
 	}
 
 	// Send submission to RabbitMQ for processing

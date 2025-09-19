@@ -33,7 +33,7 @@ type Contest struct {
 
 type Problem struct {
 	ID          uuid.UUID `json:"id" gorm:"primaryKey"`
-	ContestID   uuid.UUID `json:"contest_id" gorm:"not null"`			
+	ContestID   uuid.UUID `json:"contest_id" gorm:"not null"`
 	Title       string    `json:"title" gorm:"not null"`
 	Description string    `json:"description"`
 	CreatedAt   time.Time `json:"created_at" gorm:"autoCreateTime"`
@@ -43,21 +43,21 @@ type Problem struct {
 }
 
 type Submission struct {
-	ID             uuid.UUID `json:"id" gorm:"primaryKey"`
-	ProblemID      uuid.UUID `json:"problem_id" gorm:"not null"`
-	UserID         uuid.UUID `json:"user_id" gorm:"not null"`
-	ContestID      uuid.UUID `json:"contest_id" gorm:"not null"`
-	SubmittedAt    time.Time `json:"submitted_at" gorm:"autoCreateTime"`
-	Result         string    `json:"result" gorm:"not null"`   // e.g., "AC", "WA", "pending"
-	Language       string    `json:"language" gorm:"not null"` // Programming language used for the submission
-	SourceCode     string    `json:"source_code" gorm:"not null"`
-	Score          int       `json:"score" gorm:"default:0"`
-	StdOutput      string    `json:"std_output"`
-	StdError       string    `json:"std_error"`
-	WrongTestCase  uuid.UUID `json:"wrong_test_case"`
-	CreatedAt      time.Time `json:"created_at" gorm:"autoCreateTime"`
-	CompileOutput  string    `json:"compile_output"` // Output from the compilation process
-	ExitCode       int       `json:"exit_code"`      // Exit code from the execution of the code
+	ID            uuid.UUID `json:"id" gorm:"primaryKey"`
+	ProblemID     uuid.UUID `json:"problem_id" gorm:"not null"`
+	UserID        uuid.UUID `json:"user_id" gorm:"not null"`
+	ContestID     uuid.UUID `json:"contest_id" gorm:"not null"`
+	SubmittedAt   time.Time `json:"submitted_at" gorm:"autoCreateTime"`
+	Result        string    `json:"result" gorm:"not null"`   // e.g., "AC", "WA", "pending"
+	Language      string    `json:"language" gorm:"not null"` // Programming language used for the submission
+	SourceCode    string    `json:"source_code" gorm:"not null"`
+	Score         int       `json:"score" gorm:"default:0"`
+	StdOutput     string    `json:"std_output"`
+	StdError      string    `json:"std_error"`
+	WrongTestCase uuid.UUID `json:"wrong_test_case"`
+	CreatedAt     time.Time `json:"created_at" gorm:"autoCreateTime"`
+	CompileOutput string    `json:"compile_output"` // Output from the compilation process
+	ExitCode      int       `json:"exit_code"`      // Exit code from the execution of the code
 
 	Problem Problem `json:"problem" gorm:"foreignKey:ProblemID"`
 	User    User    `json:"user" gorm:"foreignKey:UserID"`
@@ -66,11 +66,11 @@ type Submission struct {
 type TestCase struct {
 	ID        uuid.UUID `json:"id" gorm:"primaryKey"`
 	ProblemID uuid.UUID `json:"problem_id" gorm:"not null"`
-	Input     string  `json:"input" gorm:"not null"`  // Input for the test case
-	Output    string  `json:"output" gorm:"not null"` // Expected output for the test case
+	Input     string    `json:"input" gorm:"not null"`  // Input for the test case
+	Output    string    `json:"output" gorm:"not null"` // Expected output for the test case
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
 
-	Problem Problem `json:"problem" gorm:"foreignKey:ProblemID"`			
+	Problem Problem `json:"problem" gorm:"foreignKey:ProblemID"`
 }
 
 type Language struct {
@@ -79,10 +79,10 @@ type Language struct {
 	CompileCommand string `json:"compile_command" gorm:"not null"` // Command to compile the code
 	RunCommand     string `json:"run_command" gorm:"not null"`     // Command to run
 	TimeLimit      int    `json:"time_limit" gorm:"not null"`      // Time limit for the submission in milliseconds
-	MemoryLimit    int    `json:"memory_limit"`    // Memory limit for the submission in MB
-	WallLimit      int    `json:"wall_limit"`      // Wall time limit for the submission in seconds
-	StackLimit     int    `json:"stack_limit"`     // Stack limit for the submission in MB
-	OutputLimit    int    `json:"output_limit"`    // Output limit for the submission in MB
+	MemoryLimit    int    `json:"memory_limit"`                    // Memory limit for the submission in MB
+	WallLimit      int    `json:"wall_limit"`                      // Wall time limit for the submission in seconds
+	StackLimit     int    `json:"stack_limit"`                     // Stack limit for the submission in MB
+	OutputLimit    int    `json:"output_limit"`                    // Output limit for the submission in MB
 	SrcFile        string `json:"src_file" gorm:"not null"`        // Source file name for the submission
 }
 
@@ -94,10 +94,10 @@ type LeaderboardEntry struct {
 }
 
 type RabbitMQPayload struct {
-	SubmissionID   uuid.UUID `json:"submission_id"`
-	ProblemID      uuid.UUID `json:"problem_id"`
-	UserID         uuid.UUID `json:"user_id"`
-	Language       string    `json:"language"`
-	SourceCode     string    `json:"source_code"`
+	SubmissionID uuid.UUID  `json:"submission_id"`
+	ProblemID    uuid.UUID  `json:"problem_id"`
+	UserID       uuid.UUID  `json:"user_id"`
+	SourceCode   string     `json:"source_code"`
+	Language     Language   `json:"language"`
+	TestCases    []TestCase `json:"test_cases"`
 }
-

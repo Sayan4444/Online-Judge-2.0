@@ -1,8 +1,6 @@
 package isolatejob
 
 import (
-	"OJ-Worker/config"
-	model "OJ-Worker/models"
 	"OJ-Worker/schema"
 	"context"
 	"fmt"
@@ -31,8 +29,6 @@ func isRootUser() bool {
 type IsolateJob struct {
 	Submission *schema.RabbitMQPayload
 	Response   *schema.JudgeResponse
-	Language   *model.Language
-	TestCases  []model.TestCase
 	BoxID      int
 	WorkDir    string
 	BoxDir     string
@@ -46,23 +42,11 @@ type IsolateJob struct {
 
 func ProcessSubmission(submission *schema.RabbitMQPayload, response *schema.JudgeResponse, ctx context.Context) error {
 	log.Printf("Processing submission %s for problem %s by user %s", submission.SubmissionID, submission.ProblemID, submission.UserID)
-	db := config.DB
-	var language model.Language
-	if err := db.Where("name = ?", submission.Language).First(&language).Error; err != nil {
-		return fmt.Errorf("failed to find language: %v", err)
-	}
-
-	var testCases []model.TestCase
-	if err := db.Where("problem_id = ?", submission.ProblemID).Find(&testCases).Error; err != nil {
-		return err
-	}
 
 	job := &IsolateJob{
 		Submission: submission,
 		BoxID:      int(atomic.AddInt64(&boxIDCounter, 1)) % 2147483647,
 		Response:   response,
-		Language:   &language,
-		TestCases:  testCases,
 	}
 
 	err := job.execute(ctx)
@@ -123,7 +107,7 @@ func (j *IsolateJob) initializeIsolate(ctx context.Context) error {
 	log.Printf("Isolate work directory: %s", j.WorkDir)
 	j.BoxDir = filepath.Join(j.WorkDir, "box")
 	j.TmpDir = filepath.Join(j.WorkDir, "tmp")
-	j.SourceFile = filepath.Join(j.BoxDir, j.Language.SrcFile)
+	j.SourceFile = filepath.Join(j.BoxDir, j.Submission.Language.SrcFile)
 	j.InputFile = filepath.Join(j.WorkDir, StdinFileName)
 	j.OutputFile = filepath.Join(j.WorkDir, StdoutFileName)
 	j.ErrorFile = filepath.Join(j.WorkDir, StderrFileName)
@@ -169,8 +153,8 @@ func (j *IsolateJob) compile(ctx context.Context) (bool, error) {
 		return false, fmt.Errorf("failed to initialize compile output file: %v", err)
 	}
 
-	log.Printf("Compile command from language config: %s\n", j.Language.CompileCommand)
-	if err := os.WriteFile(compileScript, []byte(j.Language.CompileCommand), 0755); err != nil {
+	log.Printf("Compile command from language config: %s\n", j.Submission.Language.CompileCommand)
+	if err := os.WriteFile(compileScript, []byte(j.Submission.Language.CompileCommand), 0755); err != nil {
 		return false, fmt.Errorf("failed to write compile script to file %s: %v", compileScript, err)
 	}
 
@@ -202,7 +186,7 @@ func (j *IsolateJob) compile(ctx context.Context) (bool, error) {
 	compilationMemoryLimit := 512000 // 512 MB
 	compilationStackLimit := 128000  // 128 MB
 
-	actualCompileCmd := fmt.Sprintf(cmdRun, j.BoxID, j.MetaFile, compilationTimeLimit, compilationWallTimeLimit, compilationExtraTimeLimit, compilationMemoryLimit, compilationStackLimit, j.Language.OutputLimit, filepath.Base(compileScript), compileOutput)
+	actualCompileCmd := fmt.Sprintf(cmdRun, j.BoxID, j.MetaFile, compilationTimeLimit, compilationWallTimeLimit, compilationExtraTimeLimit, compilationMemoryLimit, compilationStackLimit, j.Submission.Language.OutputLimit, filepath.Base(compileScript), compileOutput)
 	log.Printf("Executing actual compile command:\n%s\n", actualCompileCmd)
 
 	cmd := exec.CommandContext(ctx, "/bin/bash", "-c", actualCompileCmd)
@@ -281,7 +265,7 @@ func (j *IsolateJob) compile(ctx context.Context) (bool, error) {
 func (j *IsolateJob) run(ctx context.Context) (bool, error) {
 	runScript := filepath.Join(j.BoxDir, "run.sh")
 
-	if err := os.WriteFile(runScript, []byte(j.Language.RunCommand), 0755); err != nil {
+	if err := os.WriteFile(runScript, []byte(j.Submission.Language.RunCommand), 0755); err != nil {
 		return false, fmt.Errorf("failed to write run script to file %s: %v", runScript, err)
 	}
 
@@ -303,14 +287,14 @@ func (j *IsolateJob) run(ctx context.Context) (bool, error) {
 		--run \
 		-- /bin/bash %s < %s > %s 2> %s`
 
-	actualRunCmd := fmt.Sprintf(cmdRun, j.BoxID, j.MetaFile, j.Language.TimeLimit, j.Language.WallLimit, j.Language.MemoryLimit, j.Language.StackLimit, j.Language.OutputLimit, filepath.Base(runScript), j.InputFile, j.OutputFile, j.ErrorFile)
+	actualRunCmd := fmt.Sprintf(cmdRun, j.BoxID, j.MetaFile, j.Submission.Language.TimeLimit, j.Submission.Language.WallLimit, j.Submission.Language.MemoryLimit, j.Submission.Language.StackLimit, j.Submission.Language.OutputLimit, filepath.Base(runScript), j.InputFile, j.OutputFile, j.ErrorFile)
 	log.Printf("Actual run command template:\n%s", actualRunCmd)
 
 	
 	var combinedInput strings.Builder
-	numTestCasesStr := strconv.Itoa(len(j.TestCases))
+	numTestCasesStr := strconv.Itoa(len(j.Submission.TestCases))
 	combinedInput.WriteString(numTestCasesStr + " ")
-	for _, testCase := range j.TestCases {
+	for _, testCase := range j.Submission.TestCases {
 		combinedInput.WriteString(testCase.Input + " ")
 	}
 
@@ -394,7 +378,7 @@ func (j *IsolateJob) executeTestCase(ctx context.Context, actualRunCmd string) (
 
 	actualOutputs := strings.Split(strings.TrimSpace(stdout), "\n")
 	for i, output := range actualOutputs {
-		testCase := j.TestCases[i]
+		testCase := j.Submission.TestCases[i]
 		expectedOutput := strings.TrimSpace(testCase.Output)
 		actualOutput := strings.TrimSpace(output)
 
