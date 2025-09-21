@@ -11,6 +11,7 @@ import (
 
 	"github.com/joho/godotenv"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -34,6 +35,8 @@ func GetEnv(key string) string {
 
 var DB *gorm.DB
 var RabbitMQConnection *amqp.Connection
+var RedisClient *redis.Client
+
 
 // Connect to database
 func ConnectDB() (*gorm.DB, error) {
@@ -83,6 +86,25 @@ func CloseRabbitMQ() error {
 		if err := RabbitMQConnection.Close(); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func ConnectRedis() (*redis.Client, error) {
+	redisURL := GetEnv("REDIS_URL")
+	opt, err := redis.ParseURL(redisURL)
+	if err != nil {
+		log.Printf("Could not parse Redis URL: %v", err)
+		return nil, err
+	}
+
+	RedisClient = redis.NewClient(opt)
+	return RedisClient, nil
+}
+
+func CloseRedis() error {
+	if RedisClient != nil {
+		return RedisClient.Close()
 	}
 	return nil
 }

@@ -26,9 +26,18 @@ func main() {
 	} else {
 		e.Logger.Info("Successfully connected to the database", db.Name())
 	}
+
+	_, err = config.ConnectRedis()
+	if err != nil {
+		e.Logger.Fatal("Failed to connect to Redis:", err)
+	} else {
+		e.Logger.Info("Successfully connected to Redis")
+	}
+	
 	defer func() {
 		config.CloseDB()
 		config.CloseRabbitMQ()
+		config.CloseRedis()
 	}()
 	
 	e.Use(middleware.CORS())
@@ -37,7 +46,6 @@ func main() {
 		return c.String(http.StatusOK, "Backend is healthy!")
 	})
 
-	// Connect to the database
 	db.AutoMigrate(model.User{}, model.Contest{}, model.Problem{}, model.Submission{}, model.TestCase{}, model.Language{})
 
 	seedDB := flag.Bool("seed", false, "Seed the database with initial data")

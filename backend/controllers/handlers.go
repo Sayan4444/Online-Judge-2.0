@@ -4,6 +4,7 @@ import (
 	"OJ-backend/config"
 	models "OJ-backend/models"
 	"OJ-backend/services/rabbitmq"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -597,22 +598,65 @@ func HandleSubmission(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid request body"})
 	}
 
-	// Validate problem exists
+	redis := config.RedisClient
+
 	var problem models.Problem
-	if err := db.First(&problem, "id = ?", problemID).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return c.JSON(http.StatusNotFound, echo.Map{"error": "problem not found"})
+	cacheKey := fmt.Sprintf("problem:%s", problemID)
+	cachedProblem, err := redis.Get(c.Request().Context(), cacheKey).Result()
+	if err == nil {
+		fmt.Println("Cache HIT for problem:", problemID)
+		if err := json.Unmarshal([]byte(cachedProblem), &problem); err != nil {
+			fmt.Println("Failed to unmarshal cached problem:", err)
+			return c.JSON(http.StatusInternalServerError, echo.Map{"error": "internal server error"})
 		}
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
+	} else {
+		fmt.Println("Cache MISS for problem:", problemID)
+		if err := db.First(&problem, "id = ?", problemID).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return c.JSON(http.StatusNotFound, echo.Map{"error": "problem not found"})
+			}
+			return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
+		}
+		problemJSON, err := json.Marshal(problem)
+		if err != nil {
+			fmt.Println("Failed to marshal problem:", err)
+		} else {
+			err := redis.Set(c.Request().Context(), cacheKey, problemJSON, 1*time.Hour).Err()
+			if err != nil {
+				fmt.Println("Failed to cache problem:", err)
+			}
+		}
 	}
 
 	// Validate language exists
 	var language models.Language
-	if err := db.First(&language, "name = ?", body.Language).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return c.JSON(http.StatusNotFound, echo.Map{"error": "language not supported"})
+	cacheKey = fmt.Sprintf("language:%s", body.Language)
+	cachedLanguage, err := redis.Get(c.Request().Context(), cacheKey).Result()
+	if err == nil {
+		fmt.Println("Cache HIT for language:", body.Language)
+		if err := json.Unmarshal([]byte(cachedLanguage), &language); err != nil {
+			fmt.Println("Failed to unmarshal cached language:", err)
+			return c.JSON(http.StatusInternalServerError, echo.Map{"error": "internal server error"})
 		}
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
+	} else {
+		fmt.Println("Cache MISS for problem:", problemID)
+		if err := db.First(&problem, "id = ?", problemID).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return c.JSON(http.StatusNotFound, echo.Map{"error": "problem not found"})
+			}
+			return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
+		}
+		problemJSON, err := json.Marshal(problem)
+		if err != nil {
+			fmt.Println("Failed to marshal problem:", err)
+		} else {
+			err := redis.Set(c.Request().Context(), cacheKey, problemJSON, 1*time.Hour).Err()
+			if err != nil {
+				fmt.Println("Failed to cache problem:", err)
+			} else {
+				fmt.Println("Cache MISS, problem cached:", problemID)
+			}
+		}
 	}
 
 	submission := models.Submission{
@@ -635,8 +679,31 @@ func HandleSubmission(c echo.Context) error {
 	}
 
 	var testCases []models.TestCase
-	if err := db.Preload("Problem").Where("problem_id = ?", problemID).Find(&testCases).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to retrieve test cases"})
+	cacheKey = fmt.Sprintf("testcases:%s", problemID)
+	cachedTestCases, err := redis.Get(c.Request().Context(), cacheKey).Result()
+
+	if err == nil {
+		fmt.Println("Cache HIT for test cases:", problemID)
+		if err := json.Unmarshal([]byte(cachedTestCases), &testCases); err != nil {
+			fmt.Println("Failed to unmarshal cached test cases:", err)
+			return c.JSON(http.StatusInternalServerError, echo.Map{"error": "internal server error"})
+		}
+	} else {
+		fmt.Println("Cache MISS for test cases:", problemID)
+		if err := db.Preload("Problem").Where("problem_id = ?", problemID).Find(&testCases).Error; err != nil {
+			return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to retrieve test cases"})
+		}
+		if len(testCases) > 0 {
+			testCasesJSON, err := json.Marshal(testCases)
+			if err != nil {
+				fmt.Println("Failed to marshal test cases for caching:", err)
+			} else {
+				err := redis.Set(c.Request().Context(), cacheKey, testCasesJSON, 10*time.Minute).Err()
+				if err != nil {
+					fmt.Println("Failed to set cache for test cases:", problemID, "; Error:", err)
+				}
+			}
+		}
 	}
 
 	// Prepare RabbitMQ payload
