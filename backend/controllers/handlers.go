@@ -639,22 +639,22 @@ func HandleSubmission(c echo.Context) error {
 			return c.JSON(http.StatusInternalServerError, echo.Map{"error": "internal server error"})
 		}
 	} else {
-		fmt.Println("Cache MISS for problem:", problemID)
-		if err := db.First(&problem, "id = ?", problemID).Error; err != nil {
+		fmt.Println("Cache MISS for language:", body.Language)
+		if err := db.First(&language, "name = ?", body.Language).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
-				return c.JSON(http.StatusNotFound, echo.Map{"error": "problem not found"})
+				return c.JSON(http.StatusNotFound, echo.Map{"error": "language not found"})
 			}
 			return c.JSON(http.StatusInternalServerError, echo.Map{"error": "database error"})
 		}
-		problemJSON, err := json.Marshal(problem)
+		languageJSON, err := json.Marshal(language)
 		if err != nil {
-			fmt.Println("Failed to marshal problem:", err)
+			fmt.Println("Failed to marshal language:", err)
 		} else {
-			err := redis.Set(c.Request().Context(), cacheKey, problemJSON, 1*time.Hour).Err()
+			err := redis.Set(c.Request().Context(), cacheKey, languageJSON, 1*time.Hour).Err()
 			if err != nil {
-				fmt.Println("Failed to cache problem:", err)
+				fmt.Println("Failed to cache language:", err)
 			} else {
-				fmt.Println("Cache MISS, problem cached:", problemID)
+				fmt.Println("Cache MISS, language cached:", body.Language)
 			}
 		}
 	}

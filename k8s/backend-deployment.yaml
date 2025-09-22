@@ -15,6 +15,7 @@ spec:
       containers:
       - name: backend
         image: pratik050/online-judge-backend:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 1323
         env:

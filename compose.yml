@@ -10,11 +10,6 @@ services:
       - redis_data:/data
     networks:
       - oj-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   postgres:
     image: postgres:latest
@@ -31,15 +26,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - oj-network
-    # Healthcheck to ensure PostgreSQL is ready to accept connections
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
 
-  # RabbitMQ Message Broker
   rabbitmq:
     image: rabbitmq:4-management
     container_name: oj-rabbitmq
@@ -54,12 +41,6 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
       - oj-network
-    healthcheck:
-      test: ["CMD-SHELL", "rabbitmq-diagnostics -q check_running"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
 
   backend:
     build: ./backend
@@ -72,21 +53,11 @@ services:
       WEBHOOK_SECRET: ${WEBHOOK_SECRET}
       DB_URL: ${DB_URL}
       RABBITMQ_URL: ${RABBITMQ_URL}
+      REDIS_URL: ${REDIS_URL}
       PORT: ${BACKEND_PORT}
     restart: always
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
     networks:
     - oj-network
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:${BACKEND_PORT}/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
 
   worker:
     build: ./worker
@@ -95,6 +66,7 @@ services:
       WEBHOOK_SECRET: ${WEBHOOK_SECRET}
       DB_URL: ${DB_URL}
       RABBITMQ_URL: ${RABBITMQ_URL}
+      REDIS_URL: ${REDIS_URL}
       NUM_WORKERS: ${NUM_WORKERS}
     privileged: true
     restart: always
@@ -103,11 +75,6 @@ services:
         limits:
           cpus: ${WORKER_LIMIT_CPUS}
           memory: ${WORKER_LIMIT_MEMORY}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
     networks:
     - oj-network
 
@@ -119,9 +86,6 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf
     restart: always
-    depends_on:
-      backend:
-        condition: service_healthy
     networks:
       - oj-network
 
@@ -129,7 +93,6 @@ volumes:
   postgres_data:
   rabbitmq_data:
   redis_data:
-
 
 networks:
   oj-network:
