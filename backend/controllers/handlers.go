@@ -674,8 +674,14 @@ func HandleSubmission(c echo.Context) error {
 		CompileOutput: "", // Will be filled after compilation
 		ExitCode:      0,  // Will be filled after execution
 	}
-	if err := db.Create(&submission).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "could not create submission"})
+	submissionJSON, err := json.Marshal(submission)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to marshal submission"})
+	}
+
+	submissionKey := fmt.Sprintf("submission:%s", submission.ID.String())
+	if err := redis.Set(c.Request().Context(), submissionKey, submissionJSON, 24*time.Hour).Err(); err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "could not store submission in redis"})
 	}
 
 	var testCases []models.TestCase

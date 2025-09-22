@@ -11,7 +11,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-	"gorm.io/gorm"
 
 	"OJ-backend/config"
 	handler "OJ-backend/controllers"
@@ -123,7 +122,7 @@ func HandleSSEConnection(c echo.Context) error {
 		}
 
 		// Handle the submission result
-		if err := handleSubmissionCallback(data, submissionID, userID, client); err != nil {
+		if err := handleSubmissionCallback(c,data, submissionID, userID, client); err != nil {
 			log.Printf("Failed to handle submission callback: %v", err)
 			errorUpdate := SubmissionUpdate{
 				SubmissionID: submissionID,
@@ -194,7 +193,7 @@ type WrongAnswer struct {
 	Stdout     string    `json:"stdout"`
 }
 
-func handleSubmissionCallback(data []byte, submissionID string, userID string, client *SSEClient) error {
+func handleSubmissionCallback(c echo.Context, data []byte, submissionID string, userID string, client *SSEClient) error {
 	// Parse the callback payload from queue data
 	var payload receivedPayload
 	if err := json.Unmarshal(data, &payload); err != nil {
@@ -216,11 +215,19 @@ func handleSubmissionCallback(data []byte, submissionID string, userID string, c
 	db := config.DB
 	var submission model.Submission
 
-	if err := db.First(&submission, "id = ?", submissionID).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("submission not found")
-		}
-		return fmt.Errorf("database error: %v", err)
+	redisClient := config.RedisClient
+	ctx := c.Request().Context()
+
+	// Get submission data from Redis
+	submissionJSON, err := redisClient.Get(ctx, "submission:"+submissionID).Result()
+	if err != nil {
+		log.Printf("Failed to get submission %s from Redis: %v", submissionID, err)
+		return fmt.Errorf("failed to retrieve submission from cache: %v", err)
+	}
+
+	if err := json.Unmarshal([]byte(submissionJSON), &submission); err != nil {
+		log.Printf("Failed to unmarshal submission %s from Redis: %v", submissionID, err)
+		return fmt.Errorf("failed to parse submission data: %v", err)
 	}
 
 	// Update submission with results
