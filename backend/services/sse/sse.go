@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 
@@ -29,19 +29,19 @@ type SSEClient struct {
 
 // SubmissionUpdate represents the data sent via SSE
 type SubmissionUpdate struct {
-	SubmissionID  string              `json:"submission_id"`
-	Result        string              `json:"result"`
-	Score         int                 `json:"score"`
-	StdOutput     string              `json:"std_output"`
-	StdError      string              `json:"std_error"`
-	CompileOutput string              `json:"compile_output"`
-	ExitSignal    int                 `json:"exit_signal"`
-	ExitCode      int                 `json:"exit_code"`
-	Time          string              `json:"time"`
-	Memory        string              `json:"memory"`
-	Message       string              `json:"message,omitempty"`
+	SubmissionID  string        `json:"submission_id"`
+	Result        string        `json:"result"`
+	Score         int           `json:"score"`
+	StdOutput     string        `json:"std_output"`
+	StdError      string        `json:"std_error"`
+	CompileOutput string        `json:"compile_output"`
+	ExitSignal    int           `json:"exit_signal"`
+	ExitCode      int           `json:"exit_code"`
+	Time          string        `json:"time"`
+	Memory        string        `json:"memory"`
+	Message       string        `json:"message,omitempty"`
 	WrongAnswers  []WrongAnswer `json:"wrong_answers,omitempty"`
-	Status        string              `json:"status"` // "completed", "error", etc.
+	Status        string        `json:"status"` // "completed", "error", etc.
 }
 
 // sendSSEMessage sends a formatted SSE message to a client
@@ -134,12 +134,21 @@ func HandleSSEConnection(c echo.Context) error {
 		}
 	}()
 
+	keepAliveTicker := time.NewTicker(30 * time.Second)
+	defer keepAliveTicker.Stop()
+
 	// Wait for completion or client disconnect
 	select {
 	case <-client.Done:
 		log.Printf("SSE connection closed for user %s, submission %s", userID, submissionID)
 	case <-c.Request().Context().Done():
 		log.Printf("SSE connection cancelled for user %s, submission %s", userID, submissionID)
+	case <-keepAliveTicker.C:
+		errorUpdate := SubmissionUpdate{
+			SubmissionID: submissionID,
+			Status:       "keep-alive",
+		}
+		sendSSEMessage(client, errorUpdate)
 	}
 
 	return nil
@@ -182,7 +191,7 @@ type JudgeResponse struct {
 
 type WrongAnswer struct {
 	TestCaseID uuid.UUID `json:"test_case_id"`
-	Stdout     string `json:"stdout"`
+	Stdout     string    `json:"stdout"`
 }
 
 func handleSubmissionCallback(data []byte, submissionID string, userID string, client *SSEClient) error {
@@ -219,9 +228,9 @@ func handleSubmissionCallback(data []byte, submissionID string, userID string, c
 	submission.StdError = judgeResponse.Stderr
 	submission.CompileOutput = judgeResponse.CompileOutput
 	if len(judgeResponse.WrongAnswers) > 0 {
-        submission.WrongTestCase = judgeResponse.WrongAnswers[0].TestCaseID
+		submission.WrongTestCase = judgeResponse.WrongAnswers[0].TestCaseID
 		submission.StdOutput = judgeResponse.WrongAnswers[0].Stdout
-    }
+	}
 
 	if exitCode, err := strconv.Atoi(judgeResponse.ExitCode); err == nil {
 		submission.ExitCode = exitCode

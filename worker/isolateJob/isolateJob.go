@@ -50,13 +50,6 @@ func ProcessSubmission(submission *schema.RabbitMQPayload, response *schema.Judg
 	}
 
 	err := job.execute(ctx)
-	log.Printf("worker-1: JudgeResponse fields for submission %s:", submission.SubmissionID)
-	log.Printf("  Stderr: %s", response.Stderr)
-	log.Printf("  Time: %s", response.Time)
-	log.Printf("  Memory: %s", response.Memory)
-	log.Printf("  ExitCode: %s", response.ExitCode)
-	log.Printf("  Result: %s", response.Result)
-	log.Printf("  CompileOutput: %s", response.CompileOutput)
 	return err
 }
 
@@ -234,7 +227,7 @@ func (j *IsolateJob) compile(ctx context.Context) (bool, error) {
 		log.Printf("Compile command finished with error: %v\n", err)
 		if _, ok := err.(*exec.ExitError); ok {
 			if metaErr == nil {
-				j.Response.ExitCode = metadata["exitcode"]
+				j.Response.ExitCode = metadata["exit-code"]
 				if status, ok := metadata["status"]; ok {
 					log.Printf("Compilation status from metadata: %s\n", status)
 					if status == "TO" {
@@ -348,7 +341,12 @@ func (j *IsolateJob) executeTestCase(ctx context.Context, actualRunCmd string) (
 	} else {
 		log.Printf("Run metadata: %v", metadata)
 	}
-	j.Response.ExitCode = metadata["exit-code"]
+	if metadata["exit-code"] == "" {
+		j.Response.ExitCode = "0"
+	} else {
+		j.Response.ExitCode = metadata["exit-code"]
+	}
+	
 	if currentTime := metadata["time"]; currentTime != "" {
 		if j.Response.Time == "" || currentTime > j.Response.Time {
 			j.Response.Time = currentTime
