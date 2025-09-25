@@ -22,8 +22,14 @@ type SSEClient struct {
 	UserID         string
 	SubmissionID   string
 	ResponseWriter http.ResponseWriter
+	Request        *http.Request
 	Done           chan bool
 	Created        time.Time
+	RemoteAddr     string
+	UserAgent      string
+	LastActivity   time.Time
+	MessagesSent   int
+	BytesSent      int64
 }
 
 // SubmissionUpdate represents the data sent via SSE
@@ -45,6 +51,12 @@ type SubmissionUpdate struct {
 
 // sendSSEMessage sends a formatted SSE message to a client
 func sendSSEMessage(client *SSEClient, update SubmissionUpdate) error {
+	if client.Request.Context().Err() != nil {
+		// Context is done (e.g., canceled), so the client has disconnected.
+		// Return the context's error to signal that we should stop sending.
+		return client.Request.Context().Err()
+	}
+
 	data, err := json.Marshal(update)
 	if err != nil {
 		return fmt.Errorf("failed to marshal update: %v", err)
@@ -52,9 +64,15 @@ func sendSSEMessage(client *SSEClient, update SubmissionUpdate) error {
 
 	message := fmt.Sprintf("data: %s\n\n", data)
 
-	if _, err := client.ResponseWriter.Write([]byte(message)); err != nil {
+	bytesWritten, err := client.ResponseWriter.Write([]byte(message))
+	if err != nil {
 		return fmt.Errorf("failed to write SSE message: %v", err)
 	}
+
+	// Update client tracking
+	client.MessagesSent++
+	client.BytesSent += int64(bytesWritten)
+	client.LastActivity = time.Now()
 
 	if flusher, ok := client.ResponseWriter.(http.Flusher); ok {
 		flusher.Flush()
@@ -73,7 +91,7 @@ func HandleSSEConnection(c echo.Context) error {
 	if userID == "" || submissionID == "" {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "user_id and submission_id are required"})
 	}
-
+	request := c.Request()
 	w := c.Response().Writer
 	h := c.Response().Header()
 	h.Set("Content-Type", "text/event-stream")
@@ -86,8 +104,14 @@ func HandleSSEConnection(c echo.Context) error {
 		UserID:         userID,
 		SubmissionID:   submissionID,
 		ResponseWriter: w,
+		Request:        request,
 		Done:           make(chan bool, 1),
 		Created:        time.Now(),
+		RemoteAddr:     request.RemoteAddr,
+		UserAgent:      request.Header.Get("User-Agent"),
+		LastActivity:   time.Now(),
+		MessagesSent:   0,
+		BytesSent:      0,
 	}
 
 	// Send initial connection message
@@ -109,6 +133,7 @@ func HandleSSEConnection(c echo.Context) error {
 		}()
 
 		// consumes result from queue and returns the data
+		log.Printf("Consuming consume result from queue: %v", submissionID)
 		data, err := consumeResult(submissionID)
 		if err != nil {
 			log.Printf("Failed to consume result from queue: %v", err)
@@ -137,20 +162,32 @@ func HandleSSEConnection(c echo.Context) error {
 	defer keepAliveTicker.Stop()
 
 	// Wait for completion or client disconnect
-	select {
-	case <-client.Done:
-		log.Printf("SSE connection closed for user %s, submission %s", userID, submissionID)
-	case <-c.Request().Context().Done():
-		log.Printf("SSE connection cancelled for user %s, submission %s", userID, submissionID)
-	case <-keepAliveTicker.C:
-		errorUpdate := SubmissionUpdate{
-			SubmissionID: submissionID,
-			Status:       "keep-alive",
+	for {
+		select {
+		case <-client.Done:
+			duration := time.Since(client.Created)
+			log.Printf("SSE connection completed normally - User: %s, Submission: %s, Duration: %v, Messages: %d, Bytes: %d, RemoteAddr: %s", 
+				userID, submissionID, duration, client.MessagesSent, client.BytesSent, client.RemoteAddr)
+			return nil
+		case <-c.Request().Context().Done():
+			contextErr := c.Request().Context().Err()
+			duration := time.Since(client.Created)
+			log.Printf("SSE connection cancelled - User: %s, Submission: %s, Duration: %v, Reason: %v, Messages: %d, Bytes: %d, RemoteAddr: %s, UserAgent: %s", 
+				userID, submissionID, duration, contextErr, client.MessagesSent, client.BytesSent, client.RemoteAddr, client.UserAgent)
+			return nil
+		case <-keepAliveTicker.C:
+			keepAliveUpdate := SubmissionUpdate{
+				SubmissionID: submissionID,
+				Status:       "keep-alive",
+				Message:      "Keep-alive ping",
+			}
+			if err := sendSSEMessage(client, keepAliveUpdate); err != nil {
+				log.Printf("Failed to send keep-alive message for user %s, submission %s: %v", userID, submissionID, err)
+				return nil
+			}
+			log.Printf("Sent keep-alive message - User: %s, Submission: %s", userID, submissionID)
 		}
-		sendSSEMessage(client, errorUpdate)
 	}
-
-	return nil
 }
 
 func consumeResult(submissionID string) ([]byte, error) {
@@ -167,7 +204,7 @@ func consumeResult(submissionID string) ([]byte, error) {
 	case d := <-msgs:
 		d.Ack(false)
 		return d.Body, nil
-	case <-time.After(5 * time.Minute): // optional timeout
+	case <-time.After(1 * time.Hour): // optional timeout
 		return nil, fmt.Errorf("timeout waiting for response")
 	}
 }

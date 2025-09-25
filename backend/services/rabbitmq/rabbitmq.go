@@ -4,7 +4,6 @@ import (
 	"OJ-backend/config"
 	model "OJ-backend/models"
 	"encoding/json"
-	"fmt"
 	"log"
 	"time"
 
@@ -24,9 +23,9 @@ func SendSubmissionToQueue(rabbitmqPayload model.RabbitMQPayload, submissionID s
 		log.Fatalf("Failed to declare submission queue: %s", err)
 	}
 	// create a temporary queue for results
-	const fiveMinutesInMs = int32(5 * time.Minute / time.Millisecond)
+	const fiveHoursInMs = int32(5 * time.Hour / time.Millisecond)
 	args := amqp.Table{
-		"x-expires": fiveMinutesInMs,
+		"x-expires": fiveHoursInMs,
 	}
 	tempQueue, err := ch.QueueDeclare(submissionID, true, true, false, false, args)
 	if err != nil {
@@ -54,26 +53,6 @@ func SendSubmissionToQueue(rabbitmqPayload model.RabbitMQPayload, submissionID s
 		log.Fatalf("Failed to publish to temporary results queue: %s", err)
 	}
 	
-	// only for checking results
-	// consumeResult(ch, tempQueue)
-
 	log.Printf("Submission sent to queue: %s", submissionQueue.Name)
 	return nil
-}
-
-// only for checking results in dev
-func consumeResult(ch *amqp.Channel, tempQueue amqp.Queue) ([]byte, error) {
-	defer ch.Close()
-	msgs, err := ch.Consume(tempQueue.Name, "", false, false, false, false, nil)
-	if err != nil {
-		return nil, err
-	}
-	select {
-	case d := <-msgs:
-		log.Printf(" [x] Got reply: %s", d.Body)
-		d.Ack(false)
-		return d.Body, nil
-	case <-time.After(30 * time.Second): // optional timeout
-		return nil, fmt.Errorf("timeout waiting for response")
-	}
 }

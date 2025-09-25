@@ -45,7 +45,7 @@ func ProcessSubmission(submission *schema.RabbitMQPayload, response *schema.Judg
 
 	job := &IsolateJob{
 		Submission: submission,
-		BoxID:      int(atomic.AddInt64(&boxIDCounter, 1)) % 2147483647,
+		BoxID:      int(atomic.AddInt64(&boxIDCounter, 1)) % 999,
 		Response:   response,
 	}
 

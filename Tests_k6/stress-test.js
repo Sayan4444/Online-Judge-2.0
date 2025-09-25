@@ -4,27 +4,22 @@ import { check, sleep } from 'k6';
 // --- Read Target VUs from command line or use a default value ---
 const targetVUs = __ENV.TARGET_VUS || 5;
 
-// --- Test Configuration ---
 export const options = {
     stages: [
-        // Ramp-up: Gradually increase virtual users to the target value over 1 minute.
-        { duration: '1m', target: targetVUs },
-
-        // Hold Load: Maintain the target number of virtual users for 1 minute.
-        { duration: '2m', target: targetVUs },
-
-        // Ramp-down: Gradually decrease users back to 0 over 1 minute.
+        { duration: '5m', target: targetVUs },
+        { duration: '10m', target: targetVUs },
         { duration: '1m', target: 0 },
     ],
     thresholds: {
-        'http_req_failed': ['rate<0.01'], // less than 1% of requests should fail
+        'http_req_failed': ['rate<0.01'],
     },
+    gracefulStop: '1h',
 };
 
 // --- Test Data ---
-// const BASE_URL = 'http://localhost:8080';
-const BASE_URL = 'http://64.225.84.213:80';
-const TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMzIwNWI3MTgtZTFkZC00ZDFiLTk1YmEtNmU2NGFiNDNmZGRkIiwidXNlcm5hbWUiOiJ0ZXN0X3VzZXIiLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJleHAiOjE3NTg1Njk5OTcsImlhdCI6MTc1ODMxMDc5N30.Tg3U0PO3nqFfAaTpEp34pPKVcmXGbMIsZeM0P2GQAdc';
+const BASE_URL = 'http://localhost:8080';
+// const BASE_URL = 'http://64.225.84.213:80';
+const TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMzIwNWI3MTgtZTFkZC00ZDFiLTk1YmEtNmU2NGFiNDNmZGRkIiwidXNlcm5hbWUiOiJ0ZXN0X3VzZXIiLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJleHAiOjE3NTg4NDM1NDcsImlhdCI6MTc1ODU4NDM0N30.qrdfkrRLqG-3zOGnQA89JRfqWLJM3gkCMBAqR4CxHV8';
 const PROBLEM_ID = '750e8400-e29b-41d4-a716-446655440001';
 const LANGUAGE = 'C++';
 const SOURCE_CODE = `
@@ -114,12 +109,14 @@ export default function () {
             'Authorization': `Bearer ${TOKEN}`,
             'Accept': 'text-event-stream',
         },
+        timeout: '3000s',
     };
 
     const eventRes = http.get(eventsUrl, eventParams);
 
     check(eventRes, {
         'event stream GET status is 200': (r) => r.status === 200,
+        'received final "AC" (Accepted) status': (r) => r.body.includes('"status":"AC"'),
     });
 
     // --- MODIFIED: Calculate duration and log protocol ---

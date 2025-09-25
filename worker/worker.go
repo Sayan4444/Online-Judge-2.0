@@ -74,6 +74,11 @@ func processMessage(ctx context.Context, d amqp.Delivery, workerTag string, ch *
 	)
 	if err != nil {
 		log.Printf("%s: Failed to publish result: %v", workerTag, err)
+		
+		// Check if channel is closed
+		if ch.IsClosed() {
+			log.Printf("%s: [CRITICAL] Channel is closed during publish operation!", workerTag)
+		}
 		return
 	}
 
@@ -92,11 +97,28 @@ func main() {
 	// Load environment variables
 	config.LoadEnv()
 
-	_, err := config.ConnectRabbitMQ()
+	conn, err := config.ConnectRabbitMQ()
 	if err != nil {
 		log.Printf("Failed to connect to RabbitMQ: %v", err)
 		return
 	}
+	
+	// Add connection close monitoring
+	connCloseChan := make(chan *amqp.Error)
+	conn.NotifyClose(connCloseChan)
+	
+	go func() {
+		closeErr := <-connCloseChan
+		if closeErr != nil {
+			log.Printf("[CRITICAL] RabbitMQ connection closed unexpectedly: %v", closeErr)
+			log.Printf("  Error Code: %d", closeErr.Code)
+			log.Printf("  Error Reason: %s", closeErr.Reason)
+			log.Printf("  Server Initiated: %t", closeErr.Server)
+			log.Printf("  Recoverable: %t", closeErr.Recover)
+		} else {
+			log.Printf("[INFO] RabbitMQ connection closed gracefully")
+		}
+	}()
 
 	// Configure the number of concurrent workers from environment variables.
 	numWorkers, err := strconv.Atoi(config.GetEnv("NUM_WORKERS"))
@@ -104,13 +126,34 @@ func main() {
 		numWorkers = 5
 	}
 
+	log.Printf("Worker Configuration:")
+	log.Printf("  NUM_WORKERS: %d", numWorkers)
+	log.Printf("  RabbitMQ Connection: %s", config.GetEnv("RABBITMQ_URL"))
 	log.Printf("Starting %d workers", numWorkers)
+	
 	// create channel
 	ch, err := config.CreateRabbitMQChannel()
 	if err != nil {
 		log.Fatalf("Failed to create submit channel: %s", err)
 	}
 	defer ch.Close()
+	
+	// Add channel close monitoring
+	channelCloseChan := make(chan *amqp.Error)
+	ch.NotifyClose(channelCloseChan)
+	
+	go func() {
+		closeErr := <-channelCloseChan
+		if closeErr != nil {
+			log.Printf("[CRITICAL] RabbitMQ channel closed unexpectedly: %v", closeErr)
+			log.Printf("  Error Code: %d", closeErr.Code)
+			log.Printf("  Error Reason: %s", closeErr.Reason)
+			log.Printf("  Server Initiated: %t", closeErr.Server)
+			log.Printf("  Recoverable: %t", closeErr.Recover)
+		} else {
+			log.Printf("[INFO] RabbitMQ channel closed gracefully")
+		}
+	}()
 	// create submission queue
 	submissionQueue, err := ch.QueueDeclare("submissions", true, false, false, false, nil)
 	if err != nil {
@@ -150,11 +193,21 @@ func main() {
 			defer wg.Done()
 			workerTag := "worker-" + strconv.Itoa(workerID)
 
+			log.Printf("%s: Started and ready to process messages", workerTag)
+
 			for {
 				select {
 				case d, ok := <-msgs:
 					if !ok {
-						log.Printf("%s: Message channel closed. Worker exiting.", workerTag)
+						log.Printf("%s: Message channel closed. Checking if intentional shutdown...", workerTag)
+						
+						// Check if this is due to context cancellation (intentional shutdown)
+						select {
+						case <-ctx.Done():
+							log.Printf("%s: Channel closed due to graceful shutdown", workerTag)
+						default:
+							log.Printf("%s: [UNEXPECTED] Channel closed WITHOUT shutdown signal!", workerTag)
+						}
 						return
 					}
 					processMessage(ctx, d, workerTag,ch)

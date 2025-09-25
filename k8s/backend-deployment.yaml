@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: backend-deployment
 spec:
-  replicas: 2
+  replicas: 6
   selector:
     matchLabels:
       app: backend
