@@ -7,7 +7,8 @@ A full-stack **Online Judge (OJ)** platform where users can participate in conte
 ---
 ## OJ Architechture 
 
-![OJ_ARCH](https://github.com/user-attachments/assets/5e1e7bdf-fcaf-49ac-970a-923218b058b5)
+<img width="1813" height="900" alt="CodingJudge" src="https://github.com/user-attachments/assets/2139d6cf-963e-4ec1-8c96-24a19e4d6be2" />
+
 ---
 
 ## Tech Stack
